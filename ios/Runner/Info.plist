@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>NoFeed používa kameru iba vtedy, keď na instagram.com sám odfotíš alebo natočíš prílohu do správy alebo začneš videohovor.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>NoFeed používa mikrofón iba na hlasové správy, hovory a zvuk videa, ktoré sám spustíš na instagram.com.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

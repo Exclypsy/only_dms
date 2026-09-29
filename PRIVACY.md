@@ -17,19 +17,30 @@ crash reporting. The developer never receives any of your data.
 - The only JavaScript the app adds to the page inserts a style sheet that hides
   some buttons. It does not read the page.
 
+## Permissions
+
+- **Internet** – to load instagram.com.
+- **Camera / microphone** – asked only when instagram.com requests them (e.g.
+  voice messages, taking a photo for a message) and only used by the
+  Instagram page. On iPhone, iOS asks you before first use.
+- **Photos** – you pick them in the system Photo Picker; the app gets access
+  only to the items you choose and does not request storage access.
+
 ## What is stored on your device
 
 Like any web browser, the built-in WebView stores cookies, cache and local
 storage for instagram.com so you stay logged in. This data:
 
 - stays only on your device,
+- together with your app settings (reels/stories toggles),
 - is excluded from Android cloud backup and device-to-device transfer.
 
 ## How to delete it
 
 - Uninstall the app, or clear its storage in Android Settings → Apps → NoFeed
   → Storage → Clear storage.
-- (Planned) The in-app button “Log out and delete data”.
+- Settings (gear icon) → **Log out and delete data**.
+- On iPhone: delete the app, which removes all its data.
 
 Data you send to Instagram (messages, photos) is processed by Meta under
 [Instagram's privacy policy](https://privacycenter.instagram.com/policy).

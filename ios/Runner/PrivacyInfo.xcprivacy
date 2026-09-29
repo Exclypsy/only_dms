@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  NoFeed privacy manifest (app target).
+  - No tracking, no tracking domains, no data collected by the app.
+  - The app's own code uses no required-reason APIs. Flutter and the plugins
+    (webview_flutter_wkwebview, url_launcher_ios, shared_preferences_foundation)
+    ship their own PrivacyInfo.xcprivacy files.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

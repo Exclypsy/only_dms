@@ -22,6 +22,33 @@ you log in directly on instagram.com and the app never sees your password.
   error screen after 5 redirects within 10 s (protection against loops).
 - `lib/cosmetic_css.dart` only hides the Home/Explore/Reels buttons with CSS.
 
+## Features (phase 2)
+
+- **Photos & videos** (`<input type="file">`, Android): the system Photo Picker
+  opens (Android 11+ with the Photo Picker update, otherwise the system file
+  picker). No storage permission is requested; the picked `content://` URIs are
+  handed straight to the WebView (`MainActivity.kt` → `pickMedia`).
+- **Camera & microphone** (Android): only when the page on instagram.com asks for
+  them and you allow it in the Android system dialog; everything else is denied.
+- **Settings** (gear icon): allow shared reels (`/reel/…`), allow stories,
+  hide content in recent apps (Android `FLAG_SECURE`, also blocks screenshots),
+  and **Log out and delete data** (cookies, cache, web storage).
+- Settings are stored locally with `shared_preferences`.
+
+## Project structure
+
+| File | Purpose |
+|---|---|
+| `lib/url_policy.dart` | all navigation rules |
+| `lib/redirect_guard.dart` | redirect-loop protection |
+| `lib/dm_screen.dart` | WebView screen, back button, errors, picker & permissions |
+| `lib/settings.dart`, `lib/settings_screen.dart` | settings model, storage and UI |
+| `lib/media_pick_request.dart` | maps `accept="…"` to the right system picker |
+| `lib/native_bridge.dart` + `MainActivity.kt` | small Android platform channel |
+| `assets/icon/icon.svg` | app icon source |
+
+Only Android and iOS are supported (the desktop/web folders were removed).
+
 ## Tools
 
 1. Flutter (stable) – `brew install --cask flutter` or https://docs.flutter.dev/get-started/install
@@ -34,8 +61,12 @@ you log in directly on instagram.com and the app never sees your password.
 flutter pub get
 flutter analyze
 flutter test
-flutter run            # debug build on a connected phone / emulator
+flutter devices                  # list connected phones / simulators
+flutter run -d android           # Android phone connected via USB
+flutter run -d "iPhone 17"       # iOS Simulator
 ```
+
+On an Android phone enable Developer options → USB debugging first.
 
 ## Release APK
 
@@ -67,7 +98,53 @@ flutter install --release
 
 The APK is in `build/app/outputs/flutter-apk/app-release.apk`. Without
 `key.properties` the release build stops with an error – it never falls back
-to the debug key. AAB (Play) and iOS builds will be documented in later phases.
+to the debug key. An AAB for Google Play is only relevant with Meta's permission
+(see `COMPLIANCE.md`).
+
+## iPhone (free, via Xcode)
+
+Requirements: Mac with Xcode 26+, an Apple ID, iPhone with a cable.
+
+1. On the iPhone: Settings → Privacy & Security → **Developer Mode** → on (restart).
+2. Open the project in Xcode and set your team once:
+   ```bash
+   open ios/Runner.xcworkspace
+   ```
+   Runner target → Signing & Capabilities → Team: your Apple ID (Personal Team).
+   If Xcode says the bundle ID `com.martinbartko.nofeed` is unavailable, add a
+   suffix (e.g. `com.martinbartko.nofeed.dev`).
+3. Build and install a release build:
+   ```bash
+   flutter run --release -d <your iPhone name>
+   ```
+4. First launch only: Settings → General → VPN & Device Management → trust
+   your developer certificate.
+
+With a free Apple ID the app **expires after 7 days** – just run step 3 again.
+A paid Apple Developer Program membership (99 $/year) extends this to one year.
+
+### iOS specifics
+
+- WebKit (WKWebView) is used, as required by App Store guideline 2.5.6.
+- Swipe from the left edge to go back (there is no Back button on iOS).
+- Photos/videos: WebKit shows its own menu (photo library, camera, files).
+  The photo library uses the system picker without photo permission.
+- Camera/microphone: WebKit asks "instagram.com wants to use…", then iOS asks
+  once for the app permission (texts in `ios/Runner/Info.plist`).
+- Privacy manifest: `ios/Runner/PrivacyInfo.xcprivacy` (no tracking, no data
+  collected); Flutter and all plugins ship their own manifests.
+
+## App icon
+
+The icon (petrol square with a chat bubble) is our own design, deliberately
+unlike Instagram's logo. Android uses a vector adaptive icon
+(`res/drawable/ic_launcher_foreground.xml`, also used as the Android 13 themed
+icon). PNGs for older Android and iOS were rendered from `assets/icon/icon.svg`
+with ImageMagick, e.g.:
+
+```bash
+magick -background none -density 72 assets/icon/icon.svg -resize 1024x1024 -alpha remove -alpha off icon-1024.png
+```
 
 ## Known limitations
 
@@ -78,6 +155,14 @@ to the debug key. AAB (Play) and iOS builds will be documented in later phases.
 - "Log in with Facebook" opens in the system browser (facebook.com is not on
   the allow-list), so log in with your Instagram username and password.
 - No push notifications (out of scope by design).
-- Photo/video upload, camera and microphone come in phase 2.
+- Camera/microphone access is decided by the main-frame URL, because neither
+  `webview_flutter_android` nor `webview_flutter_wkwebview` exposes the
+  requesting origin. The main frame is always Instagram (`UrlPolicy`).
+- iOS: "hide content in recent apps" is Android-only (`FLAG_SECURE`).
+- iOS: `target="_blank"` links first arrive as a non-main-frame request and
+  are then re-checked as a main-frame load, so they still follow `UrlPolicy`;
+  plain `http://` links of that kind are ignored instead of opening in Safari.
+- "Log out and delete data" logs you out on this device only. To end the
+  session everywhere use Instagram → Accounts Center → Where you're logged in.
 - Not intended for Google Play / App Store without Meta's written permission –
   see `COMPLIANCE.md`.

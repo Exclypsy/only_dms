@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import 'app_colors.dart';
 import 'cosmetic_css.dart';
@@ -48,17 +49,26 @@ class _DmScreenState extends State<DmScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController(onPermissionRequest: _onPermissionRequest)
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: _onNavigationRequest,
-          onUrlChange: (change) => _onUrlChange(change.url),
-          onProgress: (progress) => setState(() => _progress = progress),
-          onPageFinished: (_) => _injectCss(),
-          onWebResourceError: _onWebResourceError,
-        ),
-      );
+    // iOS: play videos inline in the chat instead of forcing full screen.
+    final PlatformWebViewControllerCreationParams params =
+        WebViewPlatform.instance is WebKitWebViewPlatform
+        ? WebKitWebViewControllerCreationParams(allowsInlineMediaPlayback: true)
+        : const PlatformWebViewControllerCreationParams();
+    _controller =
+        WebViewController.fromPlatformCreationParams(
+            params,
+            onPermissionRequest: _onPermissionRequest,
+          )
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onNavigationRequest: _onNavigationRequest,
+              onUrlChange: (change) => _onUrlChange(change.url),
+              onProgress: (progress) => setState(() => _progress = progress),
+              onPageFinished: (_) => _injectCss(),
+              onWebResourceError: _onWebResourceError,
+            ),
+          );
 
     final platform = _controller.platform;
     if (platform is AndroidWebViewController) {
@@ -69,6 +79,16 @@ class _DmScreenState extends State<DmScreen> {
         ..setAllowContentAccess(false)
         ..setGeolocationEnabled(false)
         ..setOnShowFileSelector(_onShowFileSelector);
+    } else if (platform is WebKitWebViewController) {
+      platform
+        // Safari Web Inspector only in debug builds.
+        ..setInspectable(kDebugMode)
+        // iOS has no Back button: swipe from the edge to go back, like Safari.
+        ..setAllowsBackForwardNavigationGestures(true)
+        // Long-press previews would load links outside UrlPolicy.
+        ..setAllowsLinkPreview(false);
+      // <input type="file"> is handled by WebKit itself (system photo picker,
+      // camera needs NSCameraUsageDescription in Info.plist).
     }
 
     _controller.loadRequest(UrlPolicy.inboxUri);
@@ -167,11 +187,11 @@ class _DmScreenState extends State<DmScreen> {
     return NativeBridge.pickMedia(request);
   }
 
-  /// Camera/microphone: only for instagram.com and only after the user allows
-  /// it in the Android system dialog. Everything else is denied.
-  /// The plugin does not expose the requesting origin, so the main-frame URL is
+  /// Camera/microphone: only for instagram.com and only after the user confirms
+  /// it in a system dialog. Everything else is denied.
+  /// The plugins do not expose the requesting origin, so the main-frame URL is
   /// checked; UrlPolicy guarantees the main frame is always Instagram, and
-  /// Chromium blocks cross-origin iframes unless the page delegates access.
+  /// browsers block cross-origin iframes unless the page delegates access.
   Future<void> _onPermissionRequest(WebViewPermissionRequest request) async {
     const supported = {
       WebViewPermissionResourceType.camera,
@@ -181,6 +201,13 @@ class _DmScreenState extends State<DmScreen> {
     final fromInstagram = UrlPolicy.isInstagramOrigin(await _controller.currentUrl());
     if (!fromInstagram || types.isEmpty || !supported.containsAll(types)) {
       await request.deny();
+      return;
+    }
+    // iOS: let WebKit ask ("instagram.com wants to use your microphone");
+    // iOS itself shows its permission dialog on first use.
+    final platformRequest = request.platform;
+    if (platformRequest is WebKitWebViewPermissionRequest) {
+      await platformRequest.prompt();
       return;
     }
     final granted = await NativeBridge.requestMediaPermissions(
