@@ -64,8 +64,9 @@ String readViewerAvatarScript(String username, {required bool inbox}) {
 (function (user, inbox) {
   var img = user ? document.querySelector('a[href="/' + user + '/"] img') : null;
   if (!img && inbox) {
-    // The notes row is the first list on the inbox page; its first tile is the user's own.
-    img = document.querySelector('ul > li:first-child span[role="link"] img');
+    // The notes row is the only list on the inbox page; its first picture is
+    // the user's own "Your note" tile (the first item is an empty spacer).
+    img = document.querySelector('ul > li span[role="link"] img');
   }
   return img ? String(img.currentSrc || img.getAttribute('src') || '').slice(0, 2048) : '';
 })(${jsonEncode(safeName)}, ${inbox ? 'true' : 'false'});

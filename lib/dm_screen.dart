@@ -227,6 +227,9 @@ class _DmScreenState extends State<DmScreen> {
         result = null;
       }
       final url = parseAvatarUrl(result);
+      debugPrint(
+        'NOFEED_AVATAR_DEBUG inbox=$inbox try=$i empty=${result == '' || result == '""'} host=${url?.host}',
+      );
       if (url != null) {
         if (mounted && url != _avatarUrl) setState(() => _avatarUrl = url);
         return;
@@ -456,16 +459,16 @@ class _DmScreenState extends State<DmScreen> {
           // No toolbar, like the Instagram app: the page starts right under the
           // status bar. Settings: long-press Profile in the navigation pill.
           body: SafeArea(
-            // iOS: WKWebView handles the status-bar and home-indicator areas
-            // itself (content scrolls underneath, filled with the page colour).
-            top: !isIOS,
+            // iOS: WKWebView handles the home-indicator area itself (content
+            // scrolls underneath the pill, filled with the page colour). The top
+            // is not handled by WebKit, so the status bar keeps its safe area.
             bottom: !isIOS,
             child: Stack(
               children: [
                 WebViewWidget(controller: _controller),
                 if (_progress < 100 && _error == null)
                   Positioned(
-                    top: isIOS ? MediaQuery.paddingOf(context).top : 0,
+                    top: 0,
                     left: 0,
                     right: 0,
                     child: LinearProgressIndicator(
