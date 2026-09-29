@@ -18,11 +18,19 @@ void main() {
     );
     expect(find.bySemanticsLabel('Správy'), findsOneWidget);
     expect(find.bySemanticsLabel('Profil'), findsOneWidget);
-    expect(find.byIcon(Icons.send), findsOneWidget); // active = filled
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Správy')),
+      isSemantics(label: 'Správy', isButton: true, isSelected: true),
+    );
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Profil')),
+      isSemantics(label: 'Profil', isSelected: false),
+    );
     expect(find.byIcon(Icons.account_circle_outlined), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('Profil'));
     await tester.tap(find.bySemanticsLabel('Správy'));
+    await tester.pumpAndSettle(); // let the highlight animation finish
     expect(taps, [NavTab.profile, NavTab.messages]);
   });
 

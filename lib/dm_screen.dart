@@ -4,26 +4,20 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
-import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
-import 'app_colors.dart';
-import 'cosmetic_css.dart';
-import 'error_view.dart';
-import 'header_reveal.dart';
-import 'media_pick_request.dart';
+import 'instagram_tab.dart';
 import 'nav_bar.dart';
 import 'nav_tabs.dart';
 import 'native_bridge.dart';
-import 'redirect_guard.dart';
 import 'settings.dart';
 import 'settings_screen.dart';
 import 'url_policy.dart';
 import 'username_dialog.dart';
 import 'viewer_account.dart';
 
+/// App shell: two Instagram tabs (Messages, Profile) that stay alive, the
+/// floating navigation pill and the settings.
 class DmScreen extends StatefulWidget {
   const DmScreen({super.key, required this.initialSettings, required this.store});
 
@@ -35,170 +29,87 @@ class DmScreen extends StatefulWidget {
 }
 
 class _DmScreenState extends State<DmScreen> {
-  static const _offlineErrors = {
-    WebResourceErrorType.hostLookup,
-    WebResourceErrorType.connect,
-    WebResourceErrorType.timeout,
-  };
-
   late AppSettings _settings = widget.initialSettings;
   late UrlPolicy _policy = _settings.urlPolicy;
-  final HeaderReveal _headerReveal = HeaderReveal();
-  HeaderFrame? _sentHeaderFrame;
-  bool _sentHeaderAnimated = false;
-  Timer? _headerSettleTimer;
-  final RedirectGuard _redirectGuard = RedirectGuard(maxRedirects: 5);
-  late final WebViewController _controller;
 
-  Timer? _redirectTimer;
-  String? _lastUrl;
+  late final InstagramTab _messages;
 
-  /// URL shown right now, for the bottom bar and the cosmetic CSS.
-  String? _currentUrl;
+  /// Created (and preloaded in the background) once the username is known.
+  InstagramTab? _profile;
+  NavTab _activeTab = NavTab.messages;
 
   /// Profile picture of the logged-in account (memory only, see viewer_account.dart).
   Uri? _avatarUrl;
-  int _progress = 0;
-  LoadErrorKind? _error;
   Brightness? _appliedBrightness;
+
+  InstagramTab get _active => _activeTab == NavTab.profile ? (_profile ?? _messages) : _messages;
 
   @override
   void initState() {
     super.initState();
-    // iOS: play videos inline in the chat instead of forcing full screen.
-    final PlatformWebViewControllerCreationParams params =
-        WebViewPlatform.instance is WebKitWebViewPlatform
-        ? WebKitWebViewControllerCreationParams(allowsInlineMediaPlayback: true)
-        : const PlatformWebViewControllerCreationParams();
-    _controller =
-        WebViewController.fromPlatformCreationParams(
-            params,
-            onPermissionRequest: _onPermissionRequest,
-          )
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onNavigationRequest: _onNavigationRequest,
-              onUrlChange: (change) => _onUrlChange(change.url),
-              onProgress: (progress) => setState(() => _progress = progress),
-              onPageFinished: _onPageFinished,
-              onWebResourceError: _onWebResourceError,
-            ),
-          );
-
-    _controller.setOnScrollPositionChange(_onScroll);
-
-    final platform = _controller.platform;
-    if (platform is AndroidWebViewController) {
-      // Remote debugging only in debug builds.
-      AndroidWebViewController.enableDebugging(kDebugMode);
-      platform
-        ..setAllowFileAccess(false)
-        ..setAllowContentAccess(false)
-        ..setGeolocationEnabled(false)
-        ..setOnShowFileSelector(_onShowFileSelector);
-    } else if (platform is WebKitWebViewController) {
-      platform
-        // Safari Web Inspector only in debug builds.
-        ..setInspectable(kDebugMode)
-        // iOS has no Back button: swipe from the edge to go back, like Safari.
-        ..setAllowsBackForwardNavigationGestures(true)
-        // Long-press previews would load links outside UrlPolicy.
-        ..setAllowsLinkPreview(false)
-        // Rubber-band only pages that really scroll (inbox, profile). Fixed
-        // full-screen layouts like a chat keep their header in place; scroll
-        // areas inside them still bounce natively.
-        ..setOverScrollMode(WebViewOverScrollMode.ifContentScrolls);
-      // <input type="file"> is handled by WebKit itself (system photo picker,
-      // camera needs NSCameraUsageDescription in Info.plist).
-    }
-
-    _controller.loadRequest(UrlPolicy.inboxUri);
+    _messages = _createTab(UrlPolicy.inboxUri)..load();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Match the WebView background to the system theme so it never flashes white.
-    // Only Android and iOS are supported targets (macOS WebKit throws here).
+    // Match the WebViews to the system theme so they never flash white.
     final brightness = MediaQuery.platformBrightnessOf(context);
-    final supported =
-        defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
-    if (supported && brightness != _appliedBrightness) {
+    if (brightness != _appliedBrightness) {
       _appliedBrightness = brightness;
-      // The sticky inbox header uses the page colour of the current theme.
-      final url = _currentUrl;
-      if (url != null) _applyCosmetics(url);
-      _controller.setBackgroundColor(
-        brightness == Brightness.dark ? darkBackground : lightBackground,
-      );
+      for (final tab in [_messages, ?_profile]) {
+        tab.applyBrightness(brightness);
+      }
     }
   }
 
   @override
   void dispose() {
-    _redirectTimer?.cancel();
-    _headerSettleTimer?.cancel();
+    _messages.dispose();
+    _profile?.dispose();
     super.dispose();
   }
 
-  NavigationDecision _onNavigationRequest(NavigationRequest request) {
-    final action = request.isMainFrame
-        ? _policy.decide(request.url)
-        : _policy.decideSubframe(request.url);
-    switch (action) {
-      case UrlAction.allow:
-        return NavigationDecision.navigate;
-      case UrlAction.redirectToInbox:
-        _requestRedirect();
-      case UrlAction.openExternal:
-        _openExternal(request.url);
-      case UrlAction.block:
-        break;
-    }
-    return NavigationDecision.prevent;
+  InstagramTab _createTab(Uri home) {
+    final tab = InstagramTab(
+      homeUri: home,
+      policy: () => _policy,
+      pageBackground: () => _cssColor(Theme.of(context).scaffoldBackgroundColor),
+      showMessage: _showMessage,
+      onPageChanged: _onPageChanged,
+    )..addListener(_onTabChanged);
+    final brightness = _appliedBrightness;
+    if (brightness != null) tab.applyBrightness(brightness);
+    return tab;
   }
 
-  /// Instagram is a single-page app: moving between pages often only changes
-  /// the URL via `history.pushState`, which never reaches [_onNavigationRequest].
-  void _onUrlChange(String? url) {
-    if (url == null || url == _lastUrl) return;
-    _lastUrl = url;
-    final scheme = Uri.tryParse(url)?.scheme.toLowerCase();
-    // Non-web schemes are already blocked in _onNavigationRequest.
-    if (scheme != 'https' && scheme != 'http') return;
-    if (_policy.decide(url) != UrlAction.allow) {
-      _requestRedirect();
-      return;
-    }
-    _setCurrentUrl(url);
+  void _onTabChanged() {
+    if (mounted) setState(() {});
   }
 
-  void _onPageFinished(String url) {
-    if (_policy.decide(url) == UrlAction.allow) _setCurrentUrl(url);
+  static String _cssColor(Color c) =>
+      '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _setCurrentUrl(String url) {
-    final changed = url != _currentUrl;
-    if (changed) setState(() => _currentUrl = url);
-    _applyCosmetics(url);
-    if (!changed) return;
-    _headerSettleTimer?.cancel();
-    _headerReveal.reset();
-    _sentHeaderFrame = null;
-    _sendHeaderFrame(_headerReveal.frame, animate: false);
-    if (UrlPolicy.isInbox(url)) {
+  void _onPageChanged(InstagramTab tab, String url) {
+    if (tab == _messages && UrlPolicy.isInbox(url)) {
       _detectAccount();
     } else if (NavTabs.activeTab(url, username: _settings.username) == NavTab.profile) {
       // The own profile page has the most reliable picture source.
-      _detectAvatar(inbox: false);
+      _detectAvatar(tab, inbox: false);
     }
   }
 
   Future<void> _detectAccount() async {
     final username = await _detectUsername();
-    if (username != null) await _detectAvatar(inbox: true);
+    if (username != null) {
+      _ensureProfileTab(username);
+      await _detectAvatar(_messages, inbox: true);
+    }
     await _maybeShowSettingsHint();
   }
 
@@ -208,14 +119,8 @@ class _DmScreenState extends State<DmScreen> {
   Future<String?> _detectUsername({int attempts = 5}) async {
     for (var i = 0; i < attempts; i++) {
       if (i > 0) await Future<void>.delayed(const Duration(milliseconds: 1500));
-      if (!mounted || !UrlPolicy.isInbox(_currentUrl)) return null;
-      Object? result;
-      try {
-        result = await _controller.runJavaScriptReturningResult(readViewerUsernameScript);
-      } on Object {
-        result = null;
-      }
-      final username = parseViewerUsername(result);
+      if (!mounted || !UrlPolicy.isInbox(_messages.currentUrl)) return null;
+      final username = parseViewerUsername(await _messages.read(readViewerUsernameScript));
       if (username != null) {
         if (username != _settings.username) {
           await _updateSettings(_settings.copyWith(username: username));
@@ -227,25 +132,17 @@ class _DmScreenState extends State<DmScreen> {
   }
 
   /// Reads the profile-picture URL (see viewer_account.dart) while the inbox or
-  /// the own profile is shown. Keeps the old picture if nothing is found.
-  Future<void> _detectAvatar({required bool inbox, int attempts = 4}) async {
+  /// the own profile is shown in [tab]. Keeps the old picture if nothing is found.
+  Future<void> _detectAvatar(InstagramTab tab, {required bool inbox, int attempts = 4}) async {
     final username = _settings.username;
     if (username == null) return;
     for (var i = 0; i < attempts; i++) {
       if (i > 0) await Future<void>.delayed(const Duration(milliseconds: 1500));
       final stillThere = inbox
-          ? UrlPolicy.isInbox(_currentUrl)
-          : NavTabs.activeTab(_currentUrl, username: username) == NavTab.profile;
+          ? UrlPolicy.isInbox(tab.currentUrl)
+          : NavTabs.activeTab(tab.currentUrl, username: username) == NavTab.profile;
       if (!mounted || !stillThere) return;
-      Object? result;
-      try {
-        result = await _controller.runJavaScriptReturningResult(
-          readViewerAvatarScript(username, inbox: inbox),
-        );
-      } on Object {
-        result = null;
-      }
-      final url = parseAvatarUrl(result);
+      final url = parseAvatarUrl(await tab.read(readViewerAvatarScript(username, inbox: inbox)));
       if (url != null) {
         if (mounted && url != _avatarUrl) setState(() => _avatarUrl = url);
         return;
@@ -253,7 +150,21 @@ class _DmScreenState extends State<DmScreen> {
     }
   }
 
-  /// One-time tip: settings moved from the toolbar to a long-press on Profile.
+  /// Creates the Profile tab and loads it in the background, so the first
+  /// switch to it is already instant. Follows a change of the account.
+  void _ensureProfileTab(String username) {
+    final home = NavTabs.profileUri(username);
+    final profile = _profile;
+    if (profile == null) {
+      setState(() => _profile = _createTab(home)..load());
+    } else if (profile.homeUri != home) {
+      profile
+        ..homeUri = home
+        ..load();
+    }
+  }
+
+  /// One-time tip: settings are opened with a long-press on Profile.
   Future<void> _maybeShowSettingsHint() async {
     if (await widget.store.settingsHintShown() || !mounted) return;
     await widget.store.markSettingsHintShown();
@@ -269,172 +180,6 @@ class _DmScreenState extends State<DmScreen> {
     );
   }
 
-  void _requestRedirect() {
-    if (_redirectTimer?.isActive ?? false) return; // one is already scheduled
-    switch (_redirectGuard.request()) {
-      case RedirectNow():
-        _loadInbox();
-      case RedirectLater(:final delay):
-        _redirectTimer = Timer(delay, _loadInbox);
-      case RedirectGiveUp():
-        setState(() => _error = LoadErrorKind.redirectLoop);
-    }
-  }
-
-  void _loadInbox() {
-    _lastUrl = null;
-    _controller.loadRequest(UrlPolicy.inboxUri);
-  }
-
-  Future<void> _openExternal(String url) async {
-    var opened = false;
-    try {
-      opened = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    } on PlatformException {
-      opened = false;
-    }
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Odkaz sa nepodarilo otvoriť v prehliadači.')));
-    }
-  }
-
-  /// `<input type="file">` on Android: system Photo Picker, no storage permission.
-  Future<List<String>> _onShowFileSelector(FileSelectorParams params) async {
-    if (params.mode == FileSelectorMode.save) return const [];
-    if (!UrlPolicy.isInstagramOrigin(await _controller.currentUrl())) return const [];
-    final request = MediaPickRequest.fromAcceptTypes(
-      params.acceptTypes,
-      multiple: params.mode == FileSelectorMode.openMultiple,
-    );
-    return NativeBridge.pickMedia(request);
-  }
-
-  /// Camera/microphone: only for instagram.com and only after the user confirms
-  /// it in a system dialog. Everything else is denied.
-  /// The plugins do not expose the requesting origin, so the main-frame URL is
-  /// checked; UrlPolicy guarantees the main frame is always Instagram, and
-  /// browsers block cross-origin iframes unless the page delegates access.
-  Future<void> _onPermissionRequest(WebViewPermissionRequest request) async {
-    const supported = {
-      WebViewPermissionResourceType.camera,
-      WebViewPermissionResourceType.microphone,
-    };
-    final types = request.types;
-    final fromInstagram = UrlPolicy.isInstagramOrigin(await _controller.currentUrl());
-    if (!fromInstagram || types.isEmpty || !supported.containsAll(types)) {
-      await request.deny();
-      return;
-    }
-    // iOS: let WebKit ask ("instagram.com wants to use your microphone");
-    // iOS itself shows its permission dialog on first use.
-    final platformRequest = request.platform;
-    if (platformRequest is WebKitWebViewPermissionRequest) {
-      await platformRequest.prompt();
-      return;
-    }
-    final granted = await NativeBridge.requestMediaPermissions(
-      camera: types.contains(WebViewPermissionResourceType.camera),
-      microphone: types.contains(WebViewPermissionResourceType.microphone),
-    );
-    if (granted) {
-      await request.grant();
-    } else {
-      await request.deny();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Bez povolenia kamery alebo mikrofónu to nepôjde. '
-              'Povolenie môžeš zmeniť v nastaveniach Androidu.',
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  void _onWebResourceError(WebResourceError error) {
-    if (error.isForMainFrame != true) return;
-    setState(() {
-      _error = _offlineErrors.contains(error.errorType)
-          ? LoadErrorKind.offline
-          : LoadErrorKind.generic;
-    });
-  }
-
-  /// Native scroll position of the page → Instagram-style header in the inbox.
-  /// The header follows the finger while scrolling and settles (eased) once
-  /// the scrolling stops, like in the Instagram app.
-  void _onScroll(ScrollPositionChange change) {
-    if (!UrlPolicy.isInbox(_currentUrl)) return;
-    _sendHeaderFrame(_headerReveal.update(change.y), animate: false);
-    _headerSettleTimer?.cancel();
-    _headerSettleTimer = Timer(
-      const Duration(milliseconds: 120),
-      () => _sendHeaderFrame(_headerReveal.settle(), animate: true),
-    );
-  }
-
-  /// Sends a header frame to the page, skipping tiny changes so the WebView is
-  /// not flooded with calls while scrolling.
-  void _sendHeaderFrame(HeaderFrame frame, {required bool animate}) {
-    final last = _sentHeaderFrame;
-    if (last != null) {
-      if (last == frame && animate == _sentHeaderAnimated) return;
-      final tiny =
-          (last.text - frame.text).abs() < 0.02 && (last.backdrop - frame.backdrop).abs() < 0.02;
-      if (!animate && tiny && last.state == frame.state) return;
-    }
-    _sentHeaderFrame = frame;
-    _sentHeaderAnimated = animate;
-    _runCosmetic(headerFrameScript(frame, animate: animate));
-  }
-
-  Future<void> _runCosmetic(String script) async {
-    try {
-      await _controller.runJavaScript(script);
-    } on Object {
-      // Cosmetic only; ignore failures (e.g. page navigated away meanwhile).
-    }
-  }
-
-  /// iPhone inbox: the page reaches under the status bar and scrolls
-  /// underneath a blurred band, like the Instagram app. Other pages keep the
-  /// safe area, as their fixed headers would end up under the Dynamic Island.
-  bool _edgeToEdge(String? url) =>
-      defaultTargetPlatform == TargetPlatform.iOS && UrlPolicy.isInbox(url) && _error == null;
-
-  static String _cssColor(Color c) =>
-      '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
-
-  Future<void> _applyCosmetics(String url) async {
-    try {
-      await _controller.runJavaScript(
-        cosmeticScript(
-          isInbox: UrlPolicy.isInbox(url),
-          navBar: NavTabs.showBar(url),
-          background: _cssColor(Theme.of(context).scaffoldBackgroundColor),
-          edgeToEdge: _edgeToEdge(url),
-        ),
-      );
-    } on Object {
-      // Cosmetic only; ignore failures (e.g. page navigated away meanwhile).
-    }
-  }
-
-  void _retry() {
-    final wasLoop = _error == LoadErrorKind.redirectLoop;
-    setState(() => _error = null);
-    _redirectGuard.reset();
-    if (wasLoop) {
-      _loadInbox();
-    } else {
-      _controller.reload();
-    }
-  }
-
   Future<void> _updateSettings(AppSettings settings) async {
     final secureChanged = settings.hideInRecents != _settings.hideInRecents;
     setState(() {
@@ -445,25 +190,34 @@ class _DmScreenState extends State<DmScreen> {
     await widget.store.save(settings);
   }
 
-  /// Log out locally: delete cookies, cache and web storage, then show login.
+  /// Log out locally: delete cookies, cache and web storage (shared by all
+  /// tabs), drop the Profile tab and show the login page.
   Future<void> _logoutAndClearData() async {
-    _redirectTimer?.cancel();
     await WebViewCookieManager().clearCookies();
-    await _controller.clearCache();
-    await _controller.clearLocalStorage();
-    _redirectGuard.reset();
-    _lastUrl = null;
-    if (mounted) setState(() => _error = null);
-    // Another account may log in next.
-    if (mounted) setState(() => _avatarUrl = null);
+    await _messages.controller.clearCache();
+    await _messages.controller.clearLocalStorage();
+    final profile = _profile;
+    setState(() {
+      _profile = null;
+      _activeTab = NavTab.messages;
+      // Another account may log in next.
+      _avatarUrl = null;
+    });
+    profile
+      ?..removeListener(_onTabChanged)
+      ..dispose();
     await _updateSettings(_settings.copyWith(clearUsername: true));
-    await _controller.loadRequest(UrlPolicy.loginUri);
+    _messages.load(UrlPolicy.loginUri);
   }
 
   Future<void> _onNavTap(NavTab tab) async {
     switch (tab) {
       case NavTab.messages:
-        if (!UrlPolicy.isInbox(_currentUrl)) _loadInbox();
+        // Tapping the active tab again goes back to its start, like in the app.
+        if (_activeTab == NavTab.messages && !UrlPolicy.isInbox(_messages.currentUrl)) {
+          _messages.load();
+        }
+        setState(() => _activeTab = NavTab.messages);
       case NavTab.profile:
         // Normally already detected in the inbox; ask only as a fallback
         // (e.g. if Instagram changed its page and the name can't be found).
@@ -474,7 +228,14 @@ class _DmScreenState extends State<DmScreen> {
           if (username == null) return;
           await _updateSettings(_settings.copyWith(username: username));
         }
-        await _controller.loadRequest(NavTabs.profileUri(username));
+        final wasActive = _activeTab == NavTab.profile && _profile != null;
+        _ensureProfileTab(username);
+        final profile = _profile!;
+        if (wasActive &&
+            NavTabs.activeTab(profile.currentUrl, username: username) != NavTab.profile) {
+          profile.load();
+        }
+        setState(() => _activeTab = NavTab.profile);
     }
   }
 
@@ -490,25 +251,35 @@ class _DmScreenState extends State<DmScreen> {
     );
   }
 
-  /// Back: in the inbox (or with nowhere to go back to) close the app,
-  /// otherwise go one step back. Going back onto a blocked page just triggers
-  /// a redirect to the inbox, from where the next Back closes the app.
+  /// Back (Android): one step back inside the tab; from the Profile tab's start
+  /// back to Messages; in the inbox (or with nowhere to go back to) close the
+  /// app. Going back onto a blocked page just triggers a redirect.
   Future<void> _handleBack() async {
-    if (_error != null) {
+    final tab = _active;
+    if (tab.error != null && tab == _messages) {
       await SystemNavigator.pop();
       return;
     }
-    final url = await _controller.currentUrl();
-    if (UrlPolicy.isInbox(url) || !await _controller.canGoBack()) {
-      await SystemNavigator.pop();
+    final url = await tab.controller.currentUrl();
+    final canGoBack = await tab.controller.canGoBack();
+    if (tab == _messages) {
+      if (UrlPolicy.isInbox(url) || !canGoBack) {
+        await SystemNavigator.pop();
+      } else {
+        await tab.controller.goBack();
+      }
+    } else if (canGoBack && tab.error == null) {
+      await tab.controller.goBack();
     } else {
-      await _controller.goBack();
+      setState(() => _activeTab = NavTab.messages);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
+    final active = _active;
+    final profile = _profile;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -524,50 +295,40 @@ class _DmScreenState extends State<DmScreen> {
         child: Scaffold(
           // No toolbar, like the Instagram app: the page starts right under the
           // status bar. Settings: long-press Profile in the navigation pill.
-          body: SafeArea(
-            // iPhone inbox: the page reaches under the status bar (blurred band
-            // drawn by the page's CSS). Elsewhere the status bar keeps its safe
-            // area. Bottom on iOS: WKWebView handles the home indicator itself.
-            top: !_edgeToEdge(_currentUrl),
-            bottom: !isIOS,
-            child: Stack(
-              children: [
-                WebViewWidget(controller: _controller),
-                if (_progress < 100 && _error == null)
-                  Positioned(
-                    top: _edgeToEdge(_currentUrl) ? MediaQuery.paddingOf(context).top : 0,
-                    left: 0,
-                    right: 0,
-                    child: LinearProgressIndicator(
-                      minHeight: 2,
-                      value: _progress == 0 ? null : _progress / 100,
+          body: Stack(
+            children: [
+              // Both tabs stay alive; only the active one is shown.
+              IndexedStack(
+                index: identical(active, profile) ? 1 : 0,
+                sizing: StackFit.expand,
+                children: [
+                  InstagramTabView(tab: _messages, onOpenSettings: _openSettings),
+                  if (profile != null)
+                    InstagramTabView(tab: profile, onOpenSettings: _openSettings),
+                ],
+              ),
+              // Floating Instagram-style pill: Messages and Profile only.
+              // Hidden inside a chat, on login pages and while typing.
+              if (NavTabs.showBar(active.currentUrl) &&
+                  active.error == null &&
+                  MediaQuery.viewInsetsOf(context).bottom == 0)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  // 25 pt above the screen edge on iPhone, as in the Instagram app.
+                  bottom: isIOS
+                      ? math.max(MediaQuery.paddingOf(context).bottom - 9, 12)
+                      : MediaQuery.paddingOf(context).bottom + 12,
+                  child: Center(
+                    child: NoFeedNavBar(
+                      active: _activeTab,
+                      avatarUrl: _avatarUrl,
+                      onTap: _onNavTap,
+                      onLongPressProfile: _openSettings,
                     ),
                   ),
-                if (_error case final error?)
-                  Positioned.fill(
-                    child: ErrorView(kind: error, onRetry: _retry, onOpenSettings: _openSettings),
-                  ),
-                // Floating Instagram-style pill: Messages and Profile only.
-                // Hidden inside a chat, on login pages and while typing.
-                if (NavTabs.showBar(_currentUrl) &&
-                    _error == null &&
-                    MediaQuery.viewInsetsOf(context).bottom == 0)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    // 25 pt above the screen edge on iPhone, as in the Instagram app.
-                    bottom: isIOS ? math.max(MediaQuery.paddingOf(context).bottom - 9, 12) : 12,
-                    child: Center(
-                      child: NoFeedNavBar(
-                        active: NavTabs.activeTab(_currentUrl, username: _settings.username),
-                        avatarUrl: _avatarUrl,
-                        onTap: _onNavTap,
-                        onLongPressProfile: _openSettings,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),

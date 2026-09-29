@@ -171,6 +171,16 @@ html[data-nofeed-edge="1"][data-nofeed-page="inbox"] body::after {
   mask-image: linear-gradient(to bottom, transparent 0, #000 12px, rgb(0 0 0 / 0.84) calc(12px + (100% - 12px) * 0.25), rgb(0 0 0 / 0.5) calc(12px + (100% - 12px) * 0.5), rgb(0 0 0 / 0.16) calc(12px + (100% - 12px) * 0.75), transparent 100%);
 }
 
+/* At the top (and before the first scroll) the header sits right below the
+   status bar: the band must end there, or it would blur the username. */
+html[data-nofeed-edge="1"][data-nofeed-page="inbox"]:not([data-nofeed-header="shown"]):not([data-nofeed-header="hidden"]) body::before,
+html[data-nofeed-edge="1"][data-nofeed-page="inbox"]:not([data-nofeed-header="shown"]):not([data-nofeed-header="hidden"]) body::after {
+  --nofeed-fade: 0px;
+}
+html[data-nofeed-edge="1"][data-nofeed-page="inbox"]:not([data-nofeed-header="shown"]):not([data-nofeed-header="hidden"]) body::after {
+  height: 0;
+}
+
 /* Back arrow in the inbox header (it leads to the feed). Only in the inbox –
    inside a chat the same arrow goes back to the inbox. visibility keeps the
    header layout and makes the hidden button untappable. */

@@ -29,14 +29,11 @@ import 'url_policy.dart';
 class InstagramTab extends ChangeNotifier {
   InstagramTab({
     required this.homeUri,
-    required UrlPolicy Function() policy,
-    required String Function() pageBackground,
-    required void Function(String message) showMessage,
-    void Function(InstagramTab tab, String url)? onPageChanged,
-  }) : _policy = policy,
-       _pageBackground = pageBackground,
-       _showMessage = showMessage,
-       _onPageChanged = onPageChanged {
+    required this._policy,
+    required this._pageBackground,
+    required this._showMessage,
+    this._onPageChanged,
+  }) {
     // iOS: play videos inline in the chat instead of forcing full screen.
     final PlatformWebViewControllerCreationParams params =
         WebViewPlatform.instance is WebKitWebViewPlatform
@@ -155,9 +152,7 @@ class InstagramTab extends ChangeNotifier {
         defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
     if (!supported) return;
-    controller.setBackgroundColor(
-      brightness == Brightness.dark ? darkBackground : lightBackground,
-    );
+    controller.setBackgroundColor(brightness == Brightness.dark ? darkBackground : lightBackground);
     final url = currentUrl;
     if (url != null) _applyCosmetics(url);
   }

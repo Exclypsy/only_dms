@@ -31,8 +31,15 @@ you log in directly on instagram.com and the app never sees your password.
   Instagram's background colour (#0C1014).
 - **Floating navigation pill** with only **Messages** and **Profile**
   (`lib/nav_bar.dart`, logic in `lib/nav_tabs.dart`): translucent blurred capsule,
-  active item highlighted, your profile picture on the Profile item. Hidden inside
-  an open chat, on login pages and while the keyboard is open.
+  own paper-plane icon (outlined / filled) and your profile picture (ring when
+  active). The highlight slides to the tapped item and stretches on the way, like
+  liquid glass. Hidden inside an open chat, on login pages and while the keyboard
+  is open.
+- **Tabs stay loaded** (`lib/instagram_tab.dart`): Messages and Profile each have
+  their own WebView that stays alive, so switching is instant and keeps the
+  scroll position. The Profile tab is loaded in the background as soon as your
+  username is known. Tapping the active tab again goes back to its start. Both
+  WebViews share the login.
 - **Settings**: long-press Profile in the pill (a one-time tip explains it); also
   reachable from the error screen.
 - **Inbox scrolling** (`lib/cosmetic_css.dart`, `lib/header_reveal.dart`): the
@@ -78,7 +85,8 @@ for the name and shows a person icon instead.
 |---|---|
 | `lib/url_policy.dart` | all navigation rules |
 | `lib/redirect_guard.dart` | redirect-loop protection |
-| `lib/dm_screen.dart` | WebView screen, back button, errors, picker & permissions |
+| `lib/dm_screen.dart` | app shell: the two tabs, navigation pill, settings, back button |
+| `lib/instagram_tab.dart` | one Instagram WebView: URL rules, errors, cosmetics, picker & permissions |
 | `lib/settings.dart`, `lib/settings_screen.dart` | settings model, storage and UI |
 | `lib/media_pick_request.dart` | maps `accept="…"` to the right system picker |
 | `lib/nav_bar.dart`, `lib/nav_tabs.dart`, `lib/username_dialog.dart` | bottom navigation |

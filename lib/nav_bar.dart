@@ -7,10 +7,11 @@ import 'package:flutter/services.dart';
 import 'nav_tabs.dart';
 
 /// Floating navigation pill modelled on the Instagram app (2026): translucent
-/// blurred capsule, icons only, the active item on a lighter capsule. Only two
+/// blurred capsule, icons only, the active item on a lighter capsule that
+/// slides (and stretches like liquid glass) to the tapped item. Only two
 /// destinations: Messages and Profile. Long-pressing Profile opens NoFeed's
 /// settings (in Instagram it opens the account menu).
-class NoFeedNavBar extends StatelessWidget {
+class NoFeedNavBar extends StatefulWidget {
   const NoFeedNavBar({
     super.key,
     required this.active,
@@ -27,23 +28,43 @@ class NoFeedNavBar extends StatelessWidget {
   final Uri? avatarUrl;
 
   /// Measured from Instagram app screenshots (points).
-  static const double height = 59;
-  static const double _padding = 5;
-  static const double _radius = height / 2;
+  static const double height = 63;
+  static const double itemWidth = 87;
+  static const double _padding = 3;
+  static const double _gap = 12;
+
+  @override
+  State<NoFeedNavBar> createState() => _NoFeedNavBarState();
+}
+
+class _NoFeedNavBarState extends State<NoFeedNavBar> {
+  static const _tabs = [NavTab.messages, NavTab.profile];
+
+  /// Where the highlight rests while no tab is active (it fades out there).
+  int _lastIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final background = dark
-        ? const Color(0xFF1A1E23).withValues(alpha: 0.78)
+        ? const Color(0xFF16191D).withValues(alpha: 0.8)
         : Colors.white.withValues(alpha: 0.82);
     final border = dark
-        ? Colors.white.withValues(alpha: 0.14)
+        ? Colors.white.withValues(alpha: 0.16)
         : Colors.black.withValues(alpha: 0.08);
+    final highlight = dark
+        ? Colors.white.withValues(alpha: 0.17)
+        : Colors.black.withValues(alpha: 0.07);
+
+    final active = widget.active;
+    if (active != null) _lastIndex = _tabs.indexOf(active);
+    const radius = NoFeedNavBar.height / 2;
+    const innerHeight = NoFeedNavBar.height - 2 * NoFeedNavBar._padding;
+    const step = NoFeedNavBar.itemWidth + NoFeedNavBar._gap;
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_radius),
+        borderRadius: BorderRadius.circular(radius),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: dark ? 0.45 : 0.12),
@@ -53,40 +74,74 @@ class NoFeedNavBar extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(_radius),
+        borderRadius: BorderRadius.circular(radius),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            height: height,
-            padding: const EdgeInsets.all(_padding),
+            height: NoFeedNavBar.height,
+            padding: const EdgeInsets.all(NoFeedNavBar._padding),
             decoration: BoxDecoration(
               color: background,
-              borderRadius: BorderRadius.circular(_radius),
+              borderRadius: BorderRadius.circular(radius),
               border: Border.all(color: border, width: 0.8),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _NavItem(
-                  label: 'Správy',
-                  selected: active == NavTab.messages,
-                  // Paper plane tilted up like Instagram's Direct icon.
-                  onTap: () => onTap(NavTab.messages),
-                  child: Transform.rotate(
-                    angle: -math.pi / 7,
-                    child: Icon(active == NavTab.messages ? Icons.send : Icons.send_outlined),
+            child: SizedBox(
+              width: NoFeedNavBar.itemWidth * _tabs.length + NoFeedNavBar._gap * (_tabs.length - 1),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Sliding highlight: moves to the active item and stretches
+                  // (wider, a bit flatter) halfway, like liquid glass.
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(end: _lastIndex.toDouble()),
+                    duration: const Duration(milliseconds: 420),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, position, _) {
+                      final travel = math.sin(math.pi * (position - position.floorToDouble()));
+                      final width = NoFeedNavBar.itemWidth + 26 * travel;
+                      final height = innerHeight * (1 - 0.08 * travel);
+                      return Positioned(
+                        left: position * step - (width - NoFeedNavBar.itemWidth) / 2,
+                        top: (innerHeight - height) / 2,
+                        width: width,
+                        height: height,
+                        child: AnimatedOpacity(
+                          opacity: active == null ? 0 : 1,
+                          duration: const Duration(milliseconds: 200),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: highlight,
+                              borderRadius: BorderRadius.circular(height / 2),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-                const SizedBox(width: 24),
-                _NavItem(
-                  label: 'Profil',
-                  hint: 'Podrž pre nastavenia NoFeed',
-                  selected: active == NavTab.profile,
-                  onTap: () => onTap(NavTab.profile),
-                  onLongPress: onLongPressProfile,
-                  child: _ProfileIcon(avatarUrl: avatarUrl, selected: active == NavTab.profile),
-                ),
-              ],
+                  Row(
+                    children: [
+                      _NavItem(
+                        label: 'Správy',
+                        selected: active == NavTab.messages,
+                        onTap: () => widget.onTap(NavTab.messages),
+                        child: _DirectIcon(filled: active == NavTab.messages),
+                      ),
+                      const SizedBox(width: NoFeedNavBar._gap),
+                      _NavItem(
+                        label: 'Profil',
+                        hint: 'Podrž pre nastavenia NoFeed',
+                        selected: active == NavTab.profile,
+                        onTap: () => widget.onTap(NavTab.profile),
+                        onLongPress: widget.onLongPressProfile,
+                        child: _ProfileIcon(
+                          avatarUrl: widget.avatarUrl,
+                          selected: active == NavTab.profile,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -95,12 +150,13 @@ class NoFeedNavBar extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
+/// One tappable item; shrinks a little while pressed and springs back.
+class _NavItem extends StatefulWidget {
   const _NavItem({
     required this.label,
     required this.selected,
-    required this.child,
     required this.onTap,
+    required this.child,
     this.onLongPress,
     this.hint,
   });
@@ -108,47 +164,65 @@ class _NavItem extends StatelessWidget {
   final String label;
   final String? hint;
   final bool selected;
-  final Widget child;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final Widget child;
+
+  @override
+  State<_NavItem> createState() => _NavItemState();
+}
+
+class _NavItemState extends State<_NavItem> {
+  bool _pressed = false;
+
+  void _setPressed(bool pressed) {
+    if (pressed != _pressed) setState(() => _pressed = pressed);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final highlight = theme.brightness == Brightness.dark
-        ? Colors.white.withValues(alpha: 0.16)
-        : Colors.black.withValues(alpha: 0.07);
+    final longPress = widget.onLongPress;
     return Semantics(
       button: true,
-      selected: selected,
-      label: label,
-      hint: hint,
+      selected: widget.selected,
+      label: widget.label,
+      hint: widget.hint,
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _setPressed(true),
+        onTapUp: (_) => _setPressed(false),
+        onTapCancel: () => _setPressed(false),
         onTap: () {
           HapticFeedback.selectionClick();
-          onTap();
+          widget.onTap();
         },
-        onLongPress: onLongPress == null
+        onLongPress: longPress == null
             ? null
             : () {
+                _setPressed(false);
                 HapticFeedback.mediumImpact();
-                onLongPress!();
+                longPress();
               },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          width: 77,
+        child: SizedBox(
+          width: NoFeedNavBar.itemWidth,
           height: NoFeedNavBar.height - 2 * NoFeedNavBar._padding,
-          decoration: BoxDecoration(
-            color: selected ? highlight : Colors.transparent,
-            borderRadius: BorderRadius.circular(NoFeedNavBar._radius),
-          ),
           child: Center(
-            child: IconTheme.merge(
-              data: IconThemeData(size: 28, color: theme.colorScheme.onSurface),
-              child: child,
+            child: AnimatedScale(
+              scale: _pressed ? 0.86 : 1,
+              duration: Duration(milliseconds: _pressed ? 90 : 260),
+              curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                    scale: Tween(begin: 0.8, end: 1.0).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: KeyedSubtree(key: ValueKey(widget.selected), child: widget.child),
+              ),
             ),
           ),
         ),
@@ -157,8 +231,75 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-/// Round profile picture like in Instagram's tab bar (ring when active),
-/// or a person icon when the picture is unknown or fails to load.
+/// Paper-plane "messages" icon in the style of the Instagram app: outlined
+/// with a fold line, or filled with the fold cut out when active. Own drawing.
+class _DirectIcon extends StatelessWidget {
+  const _DirectIcon({required this.filled});
+
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size.square(28),
+      painter: _DirectIconPainter(color: Theme.of(context).colorScheme.onSurface, filled: filled),
+    );
+  }
+}
+
+class _DirectIconPainter extends CustomPainter {
+  _DirectIconPainter({required this.color, required this.filled});
+
+  final Color color;
+  final bool filled;
+
+  // 24 × 24 design grid.
+  static const _left = Offset(3.2, 5.0);
+  static const _tip = Offset(21.0, 3.6);
+  static const _bottom = Offset(11.8, 20.6);
+  static const _fold = Offset(9.6, 11.0);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 24, size.height / 24);
+    final plane = Path()
+      ..moveTo(_left.dx, _left.dy)
+      ..lineTo(_tip.dx, _tip.dy)
+      ..lineTo(_bottom.dx, _bottom.dy)
+      ..close();
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.1
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+
+    if (filled) {
+      canvas.saveLayer(Offset.zero & const Size(24, 24), Paint());
+      canvas.drawPath(plane, Paint()..color = color);
+      canvas.drawPath(plane, stroke); // rounds the corners
+      canvas.drawLine(
+        _tip,
+        _fold,
+        Paint()
+          ..blendMode = BlendMode.clear
+          ..strokeWidth = 2.1
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.restore();
+    } else {
+      canvas.drawPath(plane, stroke);
+      canvas.drawLine(_tip, _fold, stroke);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DirectIconPainter old) => old.color != color || old.filled != filled;
+}
+
+/// Round profile picture like in Instagram's tab bar: a ring with a gap when
+/// active, or a person outline when the picture is unknown or fails to load.
 class _ProfileIcon extends StatelessWidget {
   const _ProfileIcon({required this.avatarUrl, required this.selected});
 
@@ -167,19 +308,21 @@ class _ProfileIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fallback = Icon(selected ? Icons.account_circle : Icons.account_circle_outlined);
+    final color = Theme.of(context).colorScheme.onSurface;
+    final fallback = Icon(
+      selected ? Icons.account_circle : Icons.account_circle_outlined,
+      size: 30,
+      color: color,
+    );
     final url = avatarUrl;
     if (url == null) return fallback;
     return Container(
-      width: 30,
-      height: 30,
-      padding: const EdgeInsets.all(1.5),
+      width: 34,
+      height: 34,
+      padding: const EdgeInsets.all(2.5),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: selected ? Theme.of(context).colorScheme.onSurface : Colors.transparent,
-          width: 1.5,
-        ),
+        border: Border.all(color: selected ? color : Colors.transparent, width: 2),
       ),
       child: ClipOval(
         // Kept in Flutter's in-memory image cache only (never written to disk).
