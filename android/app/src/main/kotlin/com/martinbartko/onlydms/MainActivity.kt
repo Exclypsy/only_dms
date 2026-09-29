@@ -1,4 +1,4 @@
-package com.example.only_dms
+package com.martinbartko.onlydms
 
 import io.flutter.embedding.android.FlutterActivity
 

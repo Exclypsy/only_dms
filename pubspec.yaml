@@ -1,5 +1,5 @@
 name: only_dms
-description: "A new Flutter project."
+description: "OnlyDMs – a messages-only client for Instagram on the web."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

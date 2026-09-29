@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keep in sync with lib/app_colors.dart -->
+    <color name="app_background">#FF000000</color>
+</resources>
