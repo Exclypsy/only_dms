@@ -128,4 +128,26 @@ void main() {
       expect(UrlPolicy.isInbox('https://instagram.com.evil.com/direct/inbox/'), isFalse);
     });
   });
+
+  group('isInstagramOrigin', () {
+    test('accepts Instagram over HTTPS', () {
+      expect(UrlPolicy.isInstagramOrigin('https://www.instagram.com/direct/t/1/'), isTrue);
+      expect(UrlPolicy.isInstagramOrigin('https://instagram.com/'), isTrue);
+      expect(UrlPolicy.isInstagramOrigin('https://accountscenter.instagram.com/'), isTrue);
+    });
+    test('rejects other origins', () {
+      for (final url in [
+        null,
+        '',
+        'http://www.instagram.com/',
+        'https://instagram.com.evil.com/',
+        'https://www.instagram.com@evil.com/',
+        'https://www.instagram.com:8443/',
+        'https://evil.com/?https://www.instagram.com/',
+        'javascript:alert(1)',
+      ]) {
+        expect(UrlPolicy.isInstagramOrigin(url), isFalse, reason: url);
+      }
+    });
+  });
 }

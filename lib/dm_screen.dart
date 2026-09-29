@@ -10,11 +10,18 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'app_colors.dart';
 import 'cosmetic_css.dart';
 import 'error_view.dart';
+import 'media_pick_request.dart';
+import 'native_bridge.dart';
 import 'redirect_guard.dart';
+import 'settings.dart';
+import 'settings_screen.dart';
 import 'url_policy.dart';
 
 class DmScreen extends StatefulWidget {
-  const DmScreen({super.key});
+  const DmScreen({super.key, required this.initialSettings, required this.store});
+
+  final AppSettings initialSettings;
+  final SettingsStore store;
 
   @override
   State<DmScreen> createState() => _DmScreenState();
@@ -27,7 +34,8 @@ class _DmScreenState extends State<DmScreen> {
     WebResourceErrorType.timeout,
   };
 
-  final UrlPolicy _policy = const UrlPolicy();
+  late AppSettings _settings = widget.initialSettings;
+  late UrlPolicy _policy = _settings.urlPolicy;
   final RedirectGuard _redirectGuard = RedirectGuard(maxRedirects: 5);
   late final WebViewController _controller;
 
@@ -40,7 +48,7 @@ class _DmScreenState extends State<DmScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
+    _controller = WebViewController(onPermissionRequest: _onPermissionRequest)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -59,7 +67,8 @@ class _DmScreenState extends State<DmScreen> {
       platform
         ..setAllowFileAccess(false)
         ..setAllowContentAccess(false)
-        ..setGeolocationEnabled(false);
+        ..setGeolocationEnabled(false)
+        ..setOnShowFileSelector(_onShowFileSelector);
     }
 
     _controller.loadRequest(UrlPolicy.inboxUri);
@@ -147,6 +156,54 @@ class _DmScreenState extends State<DmScreen> {
     }
   }
 
+  /// `<input type="file">` on Android: system Photo Picker, no storage permission.
+  Future<List<String>> _onShowFileSelector(FileSelectorParams params) async {
+    if (params.mode == FileSelectorMode.save) return const [];
+    if (!UrlPolicy.isInstagramOrigin(await _controller.currentUrl())) return const [];
+    final request = MediaPickRequest.fromAcceptTypes(
+      params.acceptTypes,
+      multiple: params.mode == FileSelectorMode.openMultiple,
+    );
+    return NativeBridge.pickMedia(request);
+  }
+
+  /// Camera/microphone: only for instagram.com and only after the user allows
+  /// it in the Android system dialog. Everything else is denied.
+  /// The plugin does not expose the requesting origin, so the main-frame URL is
+  /// checked; UrlPolicy guarantees the main frame is always Instagram, and
+  /// Chromium blocks cross-origin iframes unless the page delegates access.
+  Future<void> _onPermissionRequest(WebViewPermissionRequest request) async {
+    const supported = {
+      WebViewPermissionResourceType.camera,
+      WebViewPermissionResourceType.microphone,
+    };
+    final types = request.types;
+    final fromInstagram = UrlPolicy.isInstagramOrigin(await _controller.currentUrl());
+    if (!fromInstagram || types.isEmpty || !supported.containsAll(types)) {
+      await request.deny();
+      return;
+    }
+    final granted = await NativeBridge.requestMediaPermissions(
+      camera: types.contains(WebViewPermissionResourceType.camera),
+      microphone: types.contains(WebViewPermissionResourceType.microphone),
+    );
+    if (granted) {
+      await request.grant();
+    } else {
+      await request.deny();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Bez povolenia kamery alebo mikrofónu to nepôjde. '
+              'Povolenie môžeš zmeniť v nastaveniach Androidu.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   void _onWebResourceError(WebResourceError error) {
     if (error.isForMainFrame != true) return;
     setState(() {
@@ -175,6 +232,40 @@ class _DmScreenState extends State<DmScreen> {
     }
   }
 
+  Future<void> _updateSettings(AppSettings settings) async {
+    final secureChanged = settings.hideInRecents != _settings.hideInRecents;
+    setState(() {
+      _settings = settings;
+      _policy = settings.urlPolicy;
+    });
+    if (secureChanged) await NativeBridge.setSecure(settings.hideInRecents);
+    await widget.store.save(settings);
+  }
+
+  /// Log out locally: delete cookies, cache and web storage, then show login.
+  Future<void> _logoutAndClearData() async {
+    _redirectTimer?.cancel();
+    await WebViewCookieManager().clearCookies();
+    await _controller.clearCache();
+    await _controller.clearLocalStorage();
+    _redirectGuard.reset();
+    _lastUrl = null;
+    if (mounted) setState(() => _error = null);
+    await _controller.loadRequest(UrlPolicy.loginUri);
+  }
+
+  void _openSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => SettingsScreen(
+          initial: _settings,
+          onChanged: _updateSettings,
+          onLogout: _logoutAndClearData,
+        ),
+      ),
+    );
+  }
+
   /// Back: in the inbox (or with nowhere to go back to) close the app,
   /// otherwise go one step back. Going back onto a blocked page just triggers
   /// a redirect to the inbox, from where the next Back closes the app.
@@ -199,7 +290,20 @@ class _DmScreenState extends State<DmScreen> {
         if (!didPop) _handleBack();
       },
       child: Scaffold(
+        appBar: AppBar(
+          toolbarHeight: 44,
+          title: const Text('NoFeed'),
+          titleTextStyle: Theme.of(context).textTheme.titleMedium,
+          actions: [
+            IconButton(
+              tooltip: 'Nastavenia',
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: _openSettings,
+            ),
+          ],
+        ),
         body: SafeArea(
+          top: false,
           child: Stack(
             children: [
               WebViewWidget(controller: _controller),

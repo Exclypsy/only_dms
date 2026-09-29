@@ -2,4 +2,6 @@
 <resources>
     <!-- Keep in sync with lib/app_colors.dart -->
     <color name="app_background">#FFFFFFFF</color>
+    <!-- App icon background (petrol), keep in sync with lib/app_colors.dart brandColor -->
+    <color name="ic_launcher_background">#FF0F4C5C</color>
 </resources>

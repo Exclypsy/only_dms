@@ -1,6 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- The only permission the app needs. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Voice messages / calls on instagram.com. Requested at runtime only when
+         the Instagram page asks for the camera or microphone. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Needed by WebView's WebRTC audio (normal permission, no dialog). -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- No storage permission: photos are picked with the system Photo Picker. -->
 
     <!-- allowBackup/dataExtractionRules: the login session must never leave
          the device. usesCleartextTraffic: HTTPS only. -->

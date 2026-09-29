@@ -27,6 +27,7 @@ class UrlPolicy {
   final bool allowStories;
 
   static final Uri inboxUri = Uri.parse('https://www.instagram.com/direct/inbox/');
+  static final Uri loginUri = Uri.parse('https://www.instagram.com/accounts/login/');
 
   static const String _rootDomain = 'instagram.com';
 
@@ -81,6 +82,15 @@ class UrlPolicy {
     if (uri == null || !_mainHosts.contains(uri.host.toLowerCase())) return false;
     final segments = _segments(uri.pathSegments);
     return segments.length == 2 && segments[0] == 'direct' && segments[1] == 'inbox';
+  }
+
+  /// Whether [url] belongs to Instagram (HTTPS, instagram.com or a subdomain,
+  /// default port). Used before granting camera, microphone or file access.
+  static bool isInstagramOrigin(String? url) {
+    final uri = url == null ? null : Uri.tryParse(url.trim());
+    if (uri == null || uri.scheme.toLowerCase() != 'https') return false;
+    if (uri.userInfo.isNotEmpty || (uri.hasPort && uri.port != 443)) return false;
+    return _isInstagramHost(uri.host.toLowerCase());
   }
 
   UrlAction _decidePath(List<String> rawSegments) {
