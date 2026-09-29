@@ -10,6 +10,8 @@ class SettingsScreen extends StatefulWidget {
     required this.initial,
     required this.onChanged,
     required this.onLogout,
+    this.onRequestNotifications,
+    this.onTestNotification,
   });
 
   final AppSettings initial;
@@ -17,6 +19,11 @@ class SettingsScreen extends StatefulWidget {
 
   /// Clears cookies, cache and storage and shows the login page.
   final Future<void> Function() onLogout;
+
+  /// Asks for notification permission; the switch stays off if refused.
+  /// Without it the notifications section is hidden.
+  final Future<bool> Function()? onRequestNotifications;
+  final Future<void> Function()? onTestNotification;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -33,6 +40,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _editUsername() async {
     final username = await showUsernameDialog(context, initial: _settings.username);
     if (username != null) _update(_settings.copyWith(username: username));
+  }
+
+  Future<void> _setNotifications(bool enabled) async {
+    final request = widget.onRequestNotifications;
+    if (enabled && request != null && !await request()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Oznámenia nie sú povolené. Povoliť ich môžeš v nastaveniach telefónu.'),
+        ),
+      );
+      return;
+    }
+    if (mounted) _update(_settings.copyWith(notificationsEnabled: enabled));
   }
 
   Future<void> _confirmLogout() async {
@@ -86,6 +107,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: _settings.hideInRecents,
               onChanged: (v) => _update(_settings.copyWith(hideInRecents: v)),
             ),
+          ],
+          if (widget.onRequestNotifications != null) ...[
+            const _SectionHeader('Oznámenia'),
+            SwitchListTile(
+              title: const Text('Oznámenia o nových správach'),
+              subtitle: Text(
+                isAndroid
+                    ? 'Bez mien a obsahu správ. NoFeed zostane bežať na pozadí '
+                          '(ikonka v lište) – nezatváraj ho v prehľade aplikácií.'
+                    : 'Bez mien a obsahu správ. Iba kým je NoFeed otvorený – '
+                          'iOS appky na pozadí uspí.',
+              ),
+              value: _settings.notificationsEnabled,
+              onChanged: _setNotifications,
+            ),
+            if (_settings.notificationsEnabled && widget.onTestNotification != null)
+              ListTile(
+                leading: const Icon(Icons.notifications_outlined),
+                title: const Text('Poslať skúšobné oznámenie'),
+                onTap: widget.onTestNotification,
+              ),
           ],
           const _SectionHeader('Účet'),
           ListTile(

@@ -12,6 +12,7 @@ import 'nav_tabs.dart';
 import 'native_bridge.dart';
 import 'settings.dart';
 import 'settings_screen.dart';
+import 'unread_notifier.dart';
 import 'url_policy.dart';
 import 'username_dialog.dart';
 import 'viewer_account.dart';
@@ -28,7 +29,7 @@ class DmScreen extends StatefulWidget {
   State<DmScreen> createState() => _DmScreenState();
 }
 
-class _DmScreenState extends State<DmScreen> {
+class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   late AppSettings _settings = widget.initialSettings;
   late UrlPolicy _policy = _settings.urlPolicy;
 
@@ -42,12 +43,55 @@ class _DmScreenState extends State<DmScreen> {
   Uri? _avatarUrl;
   Brightness? _appliedBrightness;
 
+  /// New-message notifications (see unread_notifier.dart).
+  final UnreadTracker _unread = UnreadTracker();
+  Timer? _unreadTimer;
+  AppLifecycleState _lifecycle = AppLifecycleState.resumed;
+
   InstagramTab get _active => _activeTab == NavTab.profile ? (_profile ?? _messages) : _messages;
 
   @override
   void initState() {
     super.initState();
     _messages = _createTab(UrlPolicy.inboxUri)..load();
+    WidgetsBinding.instance.addObserver(this);
+    _applyNotifications();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) => _lifecycle = state;
+
+  /// Starts or stops watching Instagram's unread counter (and, on Android, the
+  /// background service) according to the settings.
+  void _applyNotifications() {
+    _unreadTimer?.cancel();
+    _unread.reset();
+    final enabled = _settings.notificationsEnabled;
+    NativeBridge.setKeepAlive(enabled);
+    if (enabled) {
+      _unreadTimer = Timer.periodic(const Duration(seconds: 4), (_) => _checkUnread());
+    }
+  }
+
+  /// Reads the counter from the page title (natively, not from the page's
+  /// content) and notifies when it goes up while you are not looking at the
+  /// inbox. The notification has no names or message content.
+  Future<void> _checkUnread() async {
+    String? title;
+    try {
+      title = await _messages.controller.getTitle();
+    } on Object {
+      title = null;
+    }
+    final count = parseUnreadCount(title);
+    if (!_unread.update(count) || count == null) return;
+    final lookingAtInbox =
+        _lifecycle == AppLifecycleState.resumed &&
+        _activeTab == NavTab.messages &&
+        UrlPolicy.isInbox(_messages.currentUrl);
+    if (!lookingAtInbox) {
+      await NativeBridge.showNotification(title: 'NoFeed', body: unreadNotificationText(count));
+    }
   }
 
   @override
@@ -65,6 +109,8 @@ class _DmScreenState extends State<DmScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _unreadTimer?.cancel();
     _messages.dispose();
     _profile?.dispose();
     super.dispose();
@@ -182,11 +228,13 @@ class _DmScreenState extends State<DmScreen> {
 
   Future<void> _updateSettings(AppSettings settings) async {
     final secureChanged = settings.hideInRecents != _settings.hideInRecents;
+    final notificationsChanged = settings.notificationsEnabled != _settings.notificationsEnabled;
     setState(() {
       _settings = settings;
       _policy = settings.urlPolicy;
     });
     if (secureChanged) await NativeBridge.setSecure(settings.hideInRecents);
+    if (notificationsChanged) _applyNotifications();
     await widget.store.save(settings);
   }
 
@@ -206,7 +254,7 @@ class _DmScreenState extends State<DmScreen> {
     profile
       ?..removeListener(_onTabChanged)
       ..dispose();
-    await _updateSettings(_settings.copyWith(clearUsername: true));
+    await _updateSettings(_settings.copyWith(clearUsername: true, notificationsEnabled: false));
     _messages.load(UrlPolicy.loginUri);
   }
 
@@ -246,6 +294,11 @@ class _DmScreenState extends State<DmScreen> {
           initial: _settings,
           onChanged: _updateSettings,
           onLogout: _logoutAndClearData,
+          onRequestNotifications: NativeBridge.requestNotifications,
+          onTestNotification: () => NativeBridge.showNotification(
+            title: 'NoFeed',
+            body: 'Takto bude vyzerať oznámenie o novej správe.',
+          ),
         ),
       ),
     );

@@ -19,7 +19,8 @@ _State after phase 3 (Android + iOS), 29 September 2026._
 | Safe Browsing on | ✅ | Manifest meta-data `android.webkit.WebView.EnableSafeBrowsing=true`. |
 | WebView debugging only in debug | ✅ | Android `enableDebugging(kDebugMode)`, iOS `setInspectable(kDebugMode)`. |
 | R8 / minification in release | ✅ | `isMinifyEnabled` + `isShrinkResources`. |
-| No unnecessary permissions | ✅ | `INTERNET`, `CAMERA`, `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS` (WebRTC audio, no dialog). No storage, location, contacts, `QUERY_ALL_PACKAGES`. |
+| No unnecessary permissions | ✅ | `INTERNET`, `CAMERA`, `RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS` (WebRTC audio, no dialog), `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_REMOTE_MESSAGING` (only used when notifications are turned on). No storage, location, contacts, `QUERY_ALL_PACKAGES`. |
+| Notifications (CLAUDE.md §3, approved 29 Sep 2026) | ⚠️ | Local only, based on Instagram's unread counter in the page title read via `getTitle` (not page JS); text without names/content; no background fetching, unofficial API or server. Android: foreground service keeps the page open. iOS: only while the app is open. A store release would need to justify the foreground service type. |
 | Camera/mic only for instagram.com + system dialog | ⚠️ | Android: runtime permission dialog; iOS: WebKit prompt + iOS permission dialog. Neither plugin exposes the requesting origin, so the main-frame URL is checked (always Instagram thanks to `UrlPolicy`). If Instagram mobile web never asks for camera/mic, remove these permissions. |
 | Photo Picker, no storage permission | ✅ | `ACTION_PICK_IMAGES` (Android 11+ via SDK extension) or `ACTION_OPEN_DOCUMENT`. |
 | `FLAG_SECURE` via own platform channel | ✅ | `MainActivity.kt` → `setSecure`; toggle in Settings. |

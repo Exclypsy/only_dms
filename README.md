@@ -77,6 +77,20 @@ for the name and shows a person icon instead.
 - **Settings** (gear icon): allow shared reels (`/reel/…`), allow stories,
   hide content in recent apps (Android `FLAG_SECURE`, also blocks screenshots),
   and **Log out and delete data** (cookies, cache, web storage).
+- **New-message notifications** (Settings → Oznámenia, off by default,
+  `lib/unread_notifier.dart`): Instagram's website shows the number of unread
+  chats at the start of the page title, e.g. "(2) Instagram". NoFeed reads the
+  title natively (WebView `getTitle`, not from the page's content), takes only
+  that number, and shows a local notification when it goes up while you are not
+  looking at the inbox. The text never contains names or messages.
+  - Android: works in the background – NoFeed keeps running with a foreground
+    service (permanent low-priority notification), like a browser tab left
+    open. Don't swipe NoFeed away in recent apps.
+  - iPhone: only while NoFeed is open (e.g. on the Profile tab or in another
+    chat). iOS suspends apps in the background and delivers real push
+    notifications only to Instagram's own app. For notifications on a locked
+    iPhone, keep the official Instagram app with only message notifications on.
+  - No background downloads of Instagram, no unofficial API, no server.
 - Settings are stored locally with `shared_preferences`.
 
 ## Project structure
@@ -92,6 +106,7 @@ for the name and shows a person icon instead.
 | `lib/nav_bar.dart`, `lib/nav_tabs.dart`, `lib/username_dialog.dart` | bottom navigation |
 | `lib/viewer_account.dart` | reads only the logged-in username and profile-picture URL (the one JS exception) |
 | `lib/header_reveal.dart` | hide/show the inbox header on scroll |
+| `lib/unread_notifier.dart` + `Notifications.kt`, `KeepAliveService.kt`, `AppDelegate.swift` | new-message notifications |
 | `lib/native_bridge.dart` + `MainActivity.kt` | small Android platform channel |
 | `assets/icon/icon.svg` | app icon source |
 

@@ -9,6 +9,11 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- No storage permission: photos are picked with the system Photo Picker. -->
+    <!-- New-message notifications (only if turned on in Settings): showing them,
+         and keeping NoFeed running in the background with a visible notification. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
 
     <!-- allowBackup/dataExtractionRules: the login session must never leave
          the device. usesCleartextTraffic: HTTPS only. -->
@@ -42,6 +47,10 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <service
+            android:name=".KeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
         <!-- Google Safe Browsing for the WebView (explicitly on). -->
         <meta-data
             android:name="android.webkit.WebView.EnableSafeBrowsing"

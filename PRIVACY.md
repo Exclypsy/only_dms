@@ -29,6 +29,14 @@ crash reporting. The developer never receives any of your data.
 - **Photos** – you pick them in the system Photo Picker; the app gets access
   only to the items you choose and does not request storage access.
 
+## Notifications (optional, off by default)
+
+If you turn on notifications in Settings, NoFeed looks at the page title of
+Instagram's website, where Instagram shows the number of unread chats, and uses
+only that number. The notification says only that you have new messages – no
+names, no message content. Nothing is sent anywhere. On Android, NoFeed stays
+running in the background (with a permanent notification) while this is on.
+
 ## What is stored on your device
 
 Like any web browser, the built-in WebView stores cookies, cache and local

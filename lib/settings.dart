@@ -8,6 +8,7 @@ class AppSettings {
     this.allowSharedReels = true,
     this.allowStories = true,
     this.hideInRecents = false,
+    this.notificationsEnabled = false,
     this.username,
   });
 
@@ -17,6 +18,10 @@ class AppSettings {
   /// Android FLAG_SECURE: hides the app content in the recent-apps overview
   /// (and also blocks screenshots).
   final bool hideInRecents;
+
+  /// Local notifications when Instagram's unread counter goes up (see
+  /// unread_notifier.dart). Off by default; turning it on asks for permission.
+  final bool notificationsEnabled;
 
   /// The user's own Instagram username, typed in by the user, used only to
   /// build the Profile button URL. Never read from the page.
@@ -29,12 +34,14 @@ class AppSettings {
     bool? allowSharedReels,
     bool? allowStories,
     bool? hideInRecents,
+    bool? notificationsEnabled,
     String? username,
     bool clearUsername = false,
   }) => AppSettings(
     allowSharedReels: allowSharedReels ?? this.allowSharedReels,
     allowStories: allowStories ?? this.allowStories,
     hideInRecents: hideInRecents ?? this.hideInRecents,
+    notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
     username: clearUsername ? null : (username ?? this.username),
   );
 }
@@ -47,6 +54,7 @@ class SettingsStore {
   static const _allowSharedReels = 'allow_shared_reels';
   static const _allowStories = 'allow_stories';
   static const _hideInRecents = 'hide_in_recents';
+  static const _notificationsEnabled = 'notifications_enabled';
   static const _username = 'profile_username';
 
   Future<AppSettings> load() async {
@@ -55,6 +63,8 @@ class SettingsStore {
       allowSharedReels: await _prefs.getBool(_allowSharedReels) ?? defaults.allowSharedReels,
       allowStories: await _prefs.getBool(_allowStories) ?? defaults.allowStories,
       hideInRecents: await _prefs.getBool(_hideInRecents) ?? defaults.hideInRecents,
+      notificationsEnabled:
+          await _prefs.getBool(_notificationsEnabled) ?? defaults.notificationsEnabled,
       username: await _prefs.getString(_username),
     );
   }
@@ -70,6 +80,7 @@ class SettingsStore {
     await _prefs.setBool(_allowSharedReels, settings.allowSharedReels);
     await _prefs.setBool(_allowStories, settings.allowStories);
     await _prefs.setBool(_hideInRecents, settings.hideInRecents);
+    await _prefs.setBool(_notificationsEnabled, settings.notificationsEnabled);
     final username = settings.username;
     if (username == null) {
       await _prefs.remove(_username);

@@ -68,9 +68,9 @@ html[data-nofeed-page="inbox"] [data-pagelet="IGDInboxThreadListScrollableAreaPa
    place. Scrolling down, the search bar slides under it on a blurred backdrop
    while it fades out; further down it fades back in on scrolling up,
    following the finger. The app sets --nofeed-header (content opacity),
-   --nofeed-backdrop (blur opacity) and data-nofeed-header (top / shown /
-   hidden) from the native scroll position; data-nofeed-snap turns on the
-   easing when scrolling stops. */
+   --nofeed-backdrop (how much of the header area is blurred) and
+   data-nofeed-header (top / shown / hidden) from the native scroll position;
+   data-nofeed-snap turns on the easing when scrolling stops. */
 html[data-nofeed-page="inbox"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2) {
   position: sticky !important;
   top: env(safe-area-inset-top, 0px) !important;
@@ -83,39 +83,6 @@ html[data-nofeed-page="inbox"] div:has(> [data-pagelet="IGDInboxThreadListScroll
 html[data-nofeed-page="inbox"][data-nofeed-header="hidden"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2) {
   pointer-events: none !important;
 }
-/* Blurred, tinted backdrop behind the floating header. It reaches up to the
-   top of the screen (under the status bar), so the status bar and the header
-   share one continuous blur without a seam. Stepped (progressive) blur: the
-   strong blur ends with a short fade and a light blur continues below it and
-   fades out slowly. A single long fade of the strong blur would show the
-   content twice (sharp and blurred) in the middle. */
-html[data-nofeed-page="inbox"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2)::before,
-html[data-nofeed-page="inbox"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2)::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: var(--nofeed-backdrop, 0);
-}
-html[data-nofeed-page="inbox"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2)::before {
-  top: calc(-1 * env(safe-area-inset-top, 0px));
-  bottom: -10px;
-  background: color-mix(in srgb, var(--nofeed-bg) 40%, transparent);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 10px), rgb(0 0 0 / 0.84) calc(100% - 10px * 0.75), rgb(0 0 0 / 0.5) calc(100% - 10px * 0.5), rgb(0 0 0 / 0.16) calc(100% - 10px * 0.25), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 10px), rgb(0 0 0 / 0.84) calc(100% - 10px * 0.75), rgb(0 0 0 / 0.5) calc(100% - 10px * 0.5), rgb(0 0 0 / 0.16) calc(100% - 10px * 0.25), transparent 100%);
-}
-html[data-nofeed-page="inbox"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2)::after {
-  top: calc(100% - 4px);
-  bottom: -52px;
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 36px), rgb(0 0 0 / 0.84) calc(100% - 27px), rgb(0 0 0 / 0.5) calc(100% - 18px), rgb(0 0 0 / 0.16) calc(100% - 9px), transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 36px), rgb(0 0 0 / 0.84) calc(100% - 27px), rgb(0 0 0 / 0.5) calc(100% - 18px), rgb(0 0 0 / 0.16) calc(100% - 9px), transparent 100%);
-}
 /* Round glass button behind the "new message" icon while floating. */
 html[data-nofeed-page="inbox"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2) :is(a, [role="button"]):has(svg):not(:has(h2)) {
   border-radius: 50% !important;
@@ -126,61 +93,81 @@ html[data-nofeed-page="inbox"][data-nofeed-header="shown"] div:has(> [data-pagel
   box-shadow: 0 0 0 9px color-mix(in srgb, currentColor 10%, transparent),
     0 0 0 9.5px color-mix(in srgb, currentColor 16%, transparent) !important;
 }
-/* Easing only when the header settles after scrolling stopped. */
-html[data-nofeed-page="inbox"][data-nofeed-snap="1"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2) > *,
-html[data-nofeed-page="inbox"][data-nofeed-snap="1"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2)::before,
-html[data-nofeed-page="inbox"][data-nofeed-snap="1"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2)::after,
-html[data-nofeed-page="inbox"][data-nofeed-snap="1"] body::before,
-html[data-nofeed-page="inbox"][data-nofeed-snap="1"] body::after {
-  transition: opacity 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
-}
 
-/* iPhone: in the inbox the WebView reaches under the status bar (the app sets
-   data-nofeed-edge). The content starts below it and, when scrolled, passes
-   underneath a blurred, tinted band like in the Instagram app. The band is
-   only used while the header's own backdrop (which also covers the status
-   bar) is gone; the two cross-fade, so they never meet at a hard edge. */
-html[data-nofeed-edge="1"][data-nofeed-page="inbox"] div:has(> [role="navigation"] > div > [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) {
-  padding-top: env(safe-area-inset-top, 0px) !important;
+/* Progressive blur at the top (under the status bar and behind the floating
+   header), like iOS: five layers with blur 16 → 8 → 4 → 2 → 1 px, each strong
+   only in its own band and overlapping its neighbours, so the blur weakens
+   step by step. (One fading layer would show the content twice: sharp and
+   blurred.) #nofeed-blur is an empty decorative element added by the
+   cosmetic script outside Instagram's content. Its height covers the status
+   bar, the header while it is shown, and a 36 px fall-off below. */
+#nofeed-blur {
+  display: none;
 }
-html[data-nofeed-edge="1"][data-nofeed-page="inbox"] body::before,
-html[data-nofeed-edge="1"][data-nofeed-page="inbox"] body::after {
-  content: "";
+/* The inbox's parent elements each form their own layer (position: relative
+   with z-index 0/1), which would trap the header below #nofeed-blur. Without
+   those layers the header (z-index 10) sits above the blur (z-index 5) and the
+   chat list below it. Only the ancestors of the chat list, only in the inbox. */
+html[data-nofeed-page="inbox"] :has([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) {
+  z-index: auto !important;
+}
+html[data-nofeed-page="inbox"]:is([data-nofeed-header="shown"], [data-nofeed-header="hidden"]) #nofeed-blur {
+  display: block;
   position: fixed;
   left: 0;
   right: 0;
-  z-index: 2147483000;
-  pointer-events: none;
-  opacity: calc(1 - var(--nofeed-backdrop, 0));
-  --nofeed-fade: calc((1 - var(--nofeed-backdrop, 0)) * 10px);
-}
-html[data-nofeed-edge="1"][data-nofeed-page="inbox"] body::before {
   top: 0;
-  height: calc(env(safe-area-inset-top, 0px) + var(--nofeed-fade));
-  background: color-mix(in srgb, var(--nofeed-bg) 40%, transparent);
+  z-index: 5;
+  pointer-events: none;
+  height: calc(env(safe-area-inset-top, 0px) + var(--nofeed-backdrop, 0) * 48px + 36px);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--nofeed-bg) 45%, transparent) calc(100% - 36px), transparent 100%);
+}
+#nofeed-blur > div {
+  position: absolute;
+  inset: 0;
+}
+#nofeed-blur > div:nth-child(1) {
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--nofeed-fade)), rgb(0 0 0 / 0.84) calc(100% - var(--nofeed-fade) * 0.75), rgb(0 0 0 / 0.5) calc(100% - var(--nofeed-fade) * 0.5), rgb(0 0 0 / 0.16) calc(100% - var(--nofeed-fade) * 0.25), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--nofeed-fade)), rgb(0 0 0 / 0.84) calc(100% - var(--nofeed-fade) * 0.75), rgb(0 0 0 / 0.5) calc(100% - var(--nofeed-fade) * 0.5), rgb(0 0 0 / 0.16) calc(100% - var(--nofeed-fade) * 0.25), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent calc(100% - 24px));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent calc(100% - 24px));
 }
-/* Lighter blur continuing below the band: the blur weakens gradually. */
-html[data-nofeed-edge="1"][data-nofeed-page="inbox"] body::after {
-  top: calc(env(safe-area-inset-top, 0px) + var(--nofeed-fade) - 4px);
-  height: calc((1 - var(--nofeed-backdrop, 0)) * 52px);
+#nofeed-blur > div:nth-child(2) {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent calc(100% - 36px), #000 calc(100% - 30px), #000 calc(100% - 24px), transparent calc(100% - 16px));
+  mask-image: linear-gradient(to bottom, transparent calc(100% - 36px), #000 calc(100% - 30px), #000 calc(100% - 24px), transparent calc(100% - 16px));
+}
+#nofeed-blur > div:nth-child(3) {
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 36px), rgb(0 0 0 / 0.84) calc(100% - 27px), rgb(0 0 0 / 0.5) calc(100% - 18px), rgb(0 0 0 / 0.16) calc(100% - 9px), transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 36px), rgb(0 0 0 / 0.84) calc(100% - 27px), rgb(0 0 0 / 0.5) calc(100% - 18px), rgb(0 0 0 / 0.16) calc(100% - 9px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent calc(100% - 24px), #000 calc(100% - 20px), #000 calc(100% - 16px), transparent calc(100% - 10px));
+  mask-image: linear-gradient(to bottom, transparent calc(100% - 24px), #000 calc(100% - 20px), #000 calc(100% - 16px), transparent calc(100% - 10px));
+}
+#nofeed-blur > div:nth-child(4) {
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent calc(100% - 16px), #000 calc(100% - 12px), #000 calc(100% - 10px), transparent calc(100% - 4px));
+  mask-image: linear-gradient(to bottom, transparent calc(100% - 16px), #000 calc(100% - 12px), #000 calc(100% - 10px), transparent calc(100% - 4px));
+}
+#nofeed-blur > div:nth-child(5) {
+  -webkit-backdrop-filter: blur(1px);
+  backdrop-filter: blur(1px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent calc(100% - 10px), #000 calc(100% - 7px), #000 calc(100% - 4px), transparent calc(100% - 0px));
+  mask-image: linear-gradient(to bottom, transparent calc(100% - 10px), #000 calc(100% - 7px), #000 calc(100% - 4px), transparent calc(100% - 0px));
+}
+/* Easing only when the header settles after scrolling stopped. */
+html[data-nofeed-page="inbox"][data-nofeed-snap="1"] div:has(> [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) > :not([data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]):has([role="button"] h2) > * {
+  transition: opacity 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+html[data-nofeed-page="inbox"][data-nofeed-snap="1"] #nofeed-blur {
+  transition: height 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* At the top (and before the first scroll) the header sits right below the
-   status bar: the band must end there, or it would blur the username. */
-html[data-nofeed-edge="1"][data-nofeed-page="inbox"]:not([data-nofeed-header="shown"]):not([data-nofeed-header="hidden"]) body::before,
-html[data-nofeed-edge="1"][data-nofeed-page="inbox"]:not([data-nofeed-header="shown"]):not([data-nofeed-header="hidden"]) body::after {
-  --nofeed-fade: 0px;
-}
-html[data-nofeed-edge="1"][data-nofeed-page="inbox"]:not([data-nofeed-header="shown"]):not([data-nofeed-header="hidden"]) body::after {
-  height: 0;
+/* iPhone: in the inbox the WebView reaches under the status bar (the app sets
+   data-nofeed-edge); the content starts below it and passes under the blur. */
+html[data-nofeed-edge="1"][data-nofeed-page="inbox"] div:has(> [role="navigation"] > div > [data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]) {
+  padding-top: env(safe-area-inset-top, 0px) !important;
 }
 
 /* Back arrow in the inbox header (it leads to the feed). Only in the inbox –
@@ -193,9 +180,9 @@ html[data-nofeed-page="inbox"] svg:is([aria-label="Back"], [aria-label="Späť"]
 ''';
 
 /// JavaScript that marks the current page on `<html>` (for the rules above),
-/// sets the page background colour for the sticky header and inserts
-/// [cosmeticCss] as a `<style>` element once.
-/// It only writes attributes and styles; it reads no page content.
+/// sets the page background colour, adds the empty decorative blur element
+/// and inserts [cosmeticCss] as a `<style>` element once.
+/// It only writes attributes, styles and that element; it reads no page content.
 String cosmeticScript({
   required bool isInbox,
   required bool navBar,
@@ -209,6 +196,13 @@ String cosmeticScript({
   html.setAttribute('data-nofeed-nav', ${jsonEncode(navBar ? '1' : '0')});
   html.setAttribute('data-nofeed-edge', ${jsonEncode(edgeToEdge ? '1' : '0')});
   html.style.setProperty('--nofeed-bg', ${jsonEncode(background)});
+  if (!document.getElementById('nofeed-blur')) {
+    var blur = document.createElement('div');
+    blur.id = 'nofeed-blur';
+    blur.setAttribute('aria-hidden', 'true');
+    for (var i = 0; i < 5; i++) blur.appendChild(document.createElement('div'));
+    html.appendChild(blur);
+  }
   var id = 'nofeed-style';
   if (document.getElementById(id)) return;
   var style = document.createElement('style');

@@ -17,6 +17,8 @@ import io.flutter.plugin.common.MethodChannel
  *  - setSecure: FLAG_SECURE on/off (hide content in recent apps)
  *  - pickMedia: system Photo Picker / document picker, no storage permission
  *  - requestPermissions: runtime camera/microphone permission dialog
+ *  - requestNotifications / showNotification: local notifications (Notifications.kt)
+ *  - setKeepAlive: KeepAliveService on/off
  */
 class MainActivity : FlutterActivity() {
     private var pendingPick: MethodChannel.Result? = null
@@ -30,6 +32,16 @@ class MainActivity : FlutterActivity() {
                     "setSecure" -> setSecure(call, result)
                     "pickMedia" -> pickMedia(call, result)
                     "requestPermissions" -> requestMediaPermissions(call, result)
+                    "requestNotifications" -> requestNotifications(result)
+                    "showNotification" -> {
+                        Notifications.showMessage(
+                            this,
+                            call.argument<String>("title") ?: "NoFeed",
+                            call.argument<String>("body") ?: "",
+                        )
+                        result.success(null)
+                    }
+                    "setKeepAlive" -> setKeepAlive(call, result)
                     else -> result.notImplemented()
                 }
             }
@@ -123,12 +135,43 @@ class MainActivity : FlutterActivity() {
         requestPermissions(missing.toTypedArray(), REQUEST_PERMISSIONS)
     }
 
+    private var pendingNotifications: MethodChannel.Result? = null
+
+    private fun requestNotifications(result: MethodChannel.Result) {
+        Notifications.ensureChannels(this)
+        val needsPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        if (!needsPermission) {
+            result.success(getSystemService(android.app.NotificationManager::class.java).areNotificationsEnabled())
+            return
+        }
+        pendingNotifications?.success(false)
+        pendingNotifications = result
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+    }
+
+    private fun setKeepAlive(call: MethodCall, result: MethodChannel.Result) {
+        val intent = Intent(this, KeepAliveService::class.java)
+        if (call.argument<Boolean>("keepAlive") == true) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+        } else {
+            stopService(intent)
+        }
+        result.success(null)
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_NOTIFICATIONS) {
+            val result = pendingNotifications ?: return
+            pendingNotifications = null
+            result.success(grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+            return
+        }
         if (requestCode != REQUEST_PERMISSIONS) return
         val result = pendingPermissions ?: return
         pendingPermissions = null
@@ -142,6 +185,7 @@ class MainActivity : FlutterActivity() {
         const val CHANNEL = "com.martinbartko.nofeed/native"
         const val REQUEST_PICK = 4201
         const val REQUEST_PERMISSIONS = 4202
+        const val REQUEST_NOTIFICATIONS = 4203
         const val MAX_PICKED_ITEMS = 10
 
         // MediaStore.ACTION_PICK_IMAGES / EXTRA_PICK_IMAGES_MAX, written out

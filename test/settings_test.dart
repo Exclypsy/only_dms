@@ -25,6 +25,13 @@ void main() {
       expect(withName.copyWith(clearUsername: true).username, isNull);
     });
 
+    test('notifications are off by default and can be turned on', () {
+      expect(const AppSettings().notificationsEnabled, isFalse);
+      final on = const AppSettings().copyWith(notificationsEnabled: true);
+      expect(on.notificationsEnabled, isTrue);
+      expect(on.copyWith(allowStories: false).notificationsEnabled, isTrue);
+    });
+
     test('toggles are reflected in the URL policy', () {
       final s = const AppSettings().copyWith(allowSharedReels: false, allowStories: false);
       expect(s.urlPolicy.decide(reel), UrlAction.redirectToInbox);
@@ -89,6 +96,46 @@ void main() {
       await tester.pumpAndSettle();
       expect(logouts, 1);
       expect(find.byType(SettingsScreen), findsNothing); // back to the WebView
+    });
+  });
+
+  group('notifications setting', () {
+    Future<void> pumpScreen(
+      WidgetTester tester, {
+      required Future<bool> Function() onRequest,
+      required ValueChanged<AppSettings> onChanged,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SettingsScreen(
+            initial: const AppSettings(),
+            onChanged: onChanged,
+            onLogout: () async {},
+            onRequestNotifications: onRequest,
+            onTestNotification: () async {},
+          ),
+        ),
+      );
+    }
+
+    testWidgets('turning on asks for permission', (tester) async {
+      AppSettings? changed;
+      var asked = 0;
+      await pumpScreen(tester, onRequest: () async => ++asked > 0, onChanged: (s) => changed = s);
+      await tester.tap(find.text('Oznámenia o nových správach'));
+      await tester.pumpAndSettle();
+      expect(asked, 1);
+      expect(changed?.notificationsEnabled, isTrue);
+      expect(find.text('Poslať skúšobné oznámenie'), findsOneWidget);
+    });
+
+    testWidgets('stays off when permission is refused', (tester) async {
+      AppSettings? changed;
+      await pumpScreen(tester, onRequest: () async => false, onChanged: (s) => changed = s);
+      await tester.tap(find.text('Oznámenia o nových správach'));
+      await tester.pumpAndSettle();
+      expect(changed, isNull);
+      expect(find.textContaining('nie sú povolené'), findsOneWidget);
     });
   });
 }
