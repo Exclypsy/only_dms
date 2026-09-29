@@ -175,6 +175,8 @@ A paid Apple Developer Program membership (99 $/year) extends this to one year.
 
 - WebKit (WKWebView) is used, as required by App Store guideline 2.5.6.
 - Swipe from the left edge to go back (there is no Back button on iOS).
+- The keyboard is handled by WebKit itself, like in Safari (the app does not
+  resize the WebView on iOS; doing both would move the chat composer twice).
 - Photos/videos: WebKit shows its own menu (photo library, camera, files).
   The photo library uses the system picker without photo permission.
 - Camera/microphone: WebKit asks "instagram.com wants to use…", then iOS asks
