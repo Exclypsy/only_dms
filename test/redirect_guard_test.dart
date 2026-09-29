@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:only_dms/redirect_guard.dart';
+import 'package:nofeed/redirect_guard.dart';
 
 void main() {
   late DateTime now;

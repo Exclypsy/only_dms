@@ -1,4 +1,4 @@
-# Compliance checklist – OnlyDMs
+# Compliance checklist – NoFeed
 
 Legend: ✅ done · ⚠️ partially / risk · ❌ not done yet
 
@@ -30,7 +30,7 @@ _State after phase 1 (Android MVP), 29 September 2026._
 | Item | Status | Note |
 |---|---|---|
 | No automation, scraping, private API, credential collection | ✅ | |
-| Name without "Instagram/Insta/Gram/IG" | ✅ | "OnlyDMs", `applicationId` `com.martinbartko.onlydms`. |
+| Name without "Instagram/Insta/Gram/IG" | ✅ | "NoFeed", `applicationId` `com.martinbartko.nofeed`. |
 | Name – other trademarks | ⚠️ | "Only…" pattern may remind reviewers of the OnlyFans brand. Fine for personal use; reconsider before any store release. |
 | No Instagram logo or look-alike icon | ❌ | Still the default Flutter icon – own icon pending (must not resemble Instagram's). |
 | Disclaimer "not affiliated with Meta" | ✅ | README, PRIVACY.md. Add to the in-app About/Settings in phase 2. |

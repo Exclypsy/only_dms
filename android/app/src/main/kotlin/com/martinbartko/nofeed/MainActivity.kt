@@ -1,4 +1,4 @@
-package com.martinbartko.onlydms
+package com.martinbartko.nofeed
 
 import io.flutter.embedding.android.FlutterActivity
 

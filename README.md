@@ -1,10 +1,10 @@
-# OnlyDMs
+# NoFeed
 
 A minimal Android/iOS app that shows only your Instagram direct messages –
 no feed, no Reels, no Explore. It is a WebView around `https://www.instagram.com`;
 you log in directly on instagram.com and the app never sees your password.
 
-> **Disclaimer:** OnlyDMs is an independent project for Instagram and is not
+> **Disclaimer:** NoFeed is an independent project for Instagram and is not
 > affiliated with, endorsed or sponsored by Meta Platforms, Inc. or Instagram.
 
 ## How it works
@@ -42,7 +42,7 @@ flutter run            # debug build on a connected phone / emulator
 ### 1. Create your own release key (once)
 
 ```bash
-keytool -genkeypair -v -keystore ~/keys/onlydms-release.jks -alias onlydms \
+keytool -genkeypair -v -keystore ~/keys/nofeed-release.jks -alias nofeed \
   -keyalg RSA -keysize 4096 -validity 10000
 ```
 
@@ -54,8 +54,8 @@ If you lose it, you can't install updates over the existing app.
 ```properties
 storePassword=<your password>
 keyPassword=<your password>
-keyAlias=onlydms
-storeFile=/Users/<you>/keys/onlydms-release.jks
+keyAlias=nofeed
+storeFile=/Users/<you>/keys/nofeed-release.jks
 ```
 
 ### 3. Build and install

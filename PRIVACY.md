@@ -1,8 +1,8 @@
-# Privacy Policy – OnlyDMs
+# Privacy Policy – NoFeed
 
 _Last updated: 29 September 2026_
 
-OnlyDMs is a small app that shows the Instagram website (instagram.com)
+NoFeed is a small app that shows the Instagram website (instagram.com)
 limited to direct messages. It is an independent project, not affiliated with
 Meta Platforms, Inc. or Instagram.
 
@@ -27,7 +27,7 @@ storage for instagram.com so you stay logged in. This data:
 
 ## How to delete it
 
-- Uninstall the app, or clear its storage in Android Settings → Apps → OnlyDMs
+- Uninstall the app, or clear its storage in Android Settings → Apps → NoFeed
   → Storage → Clear storage.
 - (Planned) The in-app button “Log out and delete data”.
 

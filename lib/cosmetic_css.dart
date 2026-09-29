@@ -16,7 +16,7 @@ a[href="/reels/"] {
 final String cosmeticCssScript =
     '''
 (function () {
-  var id = 'onlydms-style';
+  var id = 'nofeed-style';
   if (document.getElementById(id)) return;
   var style = document.createElement('style');
   style.id = id;

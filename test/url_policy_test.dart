@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:only_dms/url_policy.dart';
+import 'package:nofeed/url_policy.dart';
 
 void main() {
   const policy = UrlPolicy();

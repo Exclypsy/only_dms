@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.martinbartko.onlydms"
+    namespace = "com.martinbartko.nofeed"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.martinbartko.onlydms"
+        applicationId = "com.martinbartko.nofeed"
         minSdk = flutter.minSdkVersion
         // Google Play requires API 36 (Android 16) for new apps and updates.
         targetSdk = 36

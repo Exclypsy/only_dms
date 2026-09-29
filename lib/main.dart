@@ -4,16 +4,16 @@ import 'app_colors.dart';
 import 'dm_screen.dart';
 
 void main() {
-  runApp(const OnlyDmsApp());
+  runApp(const NoFeedApp());
 }
 
-class OnlyDmsApp extends StatelessWidget {
-  const OnlyDmsApp({super.key});
+class NoFeedApp extends StatelessWidget {
+  const NoFeedApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'OnlyDMs',
+      title: 'NoFeed',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
       theme: ThemeData(

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:only_dms/error_view.dart';
+import 'package:nofeed/error_view.dart';
 
 void main() {
   testWidgets('offline error shows message and retry works', (tester) async {

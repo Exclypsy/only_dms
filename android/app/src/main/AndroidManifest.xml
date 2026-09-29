@@ -5,7 +5,7 @@
     <!-- allowBackup/dataExtractionRules: the login session must never leave
          the device. usesCleartextTraffic: HTTPS only. -->
     <application
-        android:label="OnlyDMs"
+        android:label="NoFeed"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
