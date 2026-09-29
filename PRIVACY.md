@@ -32,7 +32,8 @@ Like any web browser, the built-in WebView stores cookies, cache and local
 storage for instagram.com so you stay logged in. This data:
 
 - stays only on your device,
-- together with your app settings (reels/stories toggles),
+- together with your app settings (reels/stories toggles and the Instagram
+  username you typed in for the Profile button),
 - is excluded from Android cloud backup and device-to-device transfer.
 
 ## How to delete it

@@ -10,7 +10,8 @@ _State after phase 3 (Android + iOS), 29 September 2026._
 |---|---|---|
 | No reading/storing/logging of password, cookies, tokens, messages, URL history | ✅ | App code never reads page content; URLs are only evaluated, never stored or logged. |
 | No backend, analytics, ad SDKs, crash reporting | ✅ | Dependencies: `webview_flutter`, `webview_flutter_android`, `webview_flutter_wkwebview`, `url_launcher`, `shared_preferences` (all flutter.dev). |
-| Injected JS is cosmetic only | ✅ | `lib/cosmetic_css.dart` – inserts a `<style>` element only. |
+| Injected JS is cosmetic only | ✅ | `lib/cosmetic_css.dart` – inserts a `<style>` element and sets a `data-nofeed-page` attribute on `<html>`; reads nothing (checked by `test/cosmetic_css_test.dart`). |
+| Profile button without reading the page | ✅ | The username is typed in by the user once and stored locally; not read from the DOM, cookies or URLs. |
 | No `JavaScriptChannel` / `addJavascriptInterface` | ✅ | The platform channel (`MethodChannel`) is Flutter ↔ Android only; web content cannot reach it. |
 | No TLS bypass | ✅ | No SSL error handler is set → both plugins reject invalid certificates. No custom trust manager, no `NSAllowsArbitraryLoads` / `NSAppTransportSecurity` exceptions. |
 | Cleartext disabled | ✅ | `android:usesCleartextTraffic="false"`; Instagram over `http` is blocked in `url_policy.dart`. |

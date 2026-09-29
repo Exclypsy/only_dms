@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,11 +13,14 @@ import 'app_colors.dart';
 import 'cosmetic_css.dart';
 import 'error_view.dart';
 import 'media_pick_request.dart';
+import 'nav_bar.dart';
+import 'nav_tabs.dart';
 import 'native_bridge.dart';
 import 'redirect_guard.dart';
 import 'settings.dart';
 import 'settings_screen.dart';
 import 'url_policy.dart';
+import 'username_dialog.dart';
 
 class DmScreen extends StatefulWidget {
   const DmScreen({super.key, required this.initialSettings, required this.store});
@@ -42,6 +46,9 @@ class _DmScreenState extends State<DmScreen> {
 
   Timer? _redirectTimer;
   String? _lastUrl;
+
+  /// URL shown right now, for the bottom bar and the cosmetic CSS.
+  String? _currentUrl;
   int _progress = 0;
   LoadErrorKind? _error;
   Brightness? _appliedBrightness;
@@ -65,7 +72,7 @@ class _DmScreenState extends State<DmScreen> {
               onNavigationRequest: _onNavigationRequest,
               onUrlChange: (change) => _onUrlChange(change.url),
               onProgress: (progress) => setState(() => _progress = progress),
-              onPageFinished: (_) => _injectCss(),
+              onPageFinished: _onPageFinished,
               onWebResourceError: _onWebResourceError,
             ),
           );
@@ -142,7 +149,20 @@ class _DmScreenState extends State<DmScreen> {
     final scheme = Uri.tryParse(url)?.scheme.toLowerCase();
     // Non-web schemes are already blocked in _onNavigationRequest.
     if (scheme != 'https' && scheme != 'http') return;
-    if (_policy.decide(url) != UrlAction.allow) _requestRedirect();
+    if (_policy.decide(url) != UrlAction.allow) {
+      _requestRedirect();
+      return;
+    }
+    _setCurrentUrl(url);
+  }
+
+  void _onPageFinished(String url) {
+    if (_policy.decide(url) == UrlAction.allow) _setCurrentUrl(url);
+  }
+
+  void _setCurrentUrl(String url) {
+    if (url != _currentUrl) setState(() => _currentUrl = url);
+    _applyCosmetics(url);
   }
 
   void _requestRedirect() {
@@ -240,9 +260,11 @@ class _DmScreenState extends State<DmScreen> {
     });
   }
 
-  Future<void> _injectCss() async {
+  Future<void> _applyCosmetics(String url) async {
     try {
-      await _controller.runJavaScript(cosmeticCssScript);
+      await _controller.runJavaScript(
+        cosmeticScript(isInbox: UrlPolicy.isInbox(url), navBar: NavTabs.showBar(url)),
+      );
     } on Object {
       // Cosmetic only; ignore failures (e.g. page navigated away meanwhile).
     }
@@ -281,6 +303,21 @@ class _DmScreenState extends State<DmScreen> {
     await _controller.loadRequest(UrlPolicy.loginUri);
   }
 
+  Future<void> _onNavTap(NavTab tab) async {
+    switch (tab) {
+      case NavTab.messages:
+        if (!UrlPolicy.isInbox(_currentUrl)) _loadInbox();
+      case NavTab.profile:
+        var username = _settings.username;
+        if (username == null) {
+          username = await showUsernameDialog(context);
+          if (username == null) return;
+          await _updateSettings(_settings.copyWith(username: username));
+        }
+        await _controller.loadRequest(NavTabs.profileUri(username));
+    }
+  }
+
   void _openSettings() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -311,6 +348,7 @@ class _DmScreenState extends State<DmScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -331,6 +369,9 @@ class _DmScreenState extends State<DmScreen> {
         ),
         body: SafeArea(
           top: false,
+          // iOS: WKWebView handles the home-indicator area itself and fills it
+          // with the page background, so no empty strip is left at the bottom.
+          bottom: !isIOS,
           child: Stack(
             children: [
               WebViewWidget(controller: _controller),
@@ -339,6 +380,22 @@ class _DmScreenState extends State<DmScreen> {
               if (_error case final error?)
                 Positioned.fill(
                   child: ErrorView(kind: error, onRetry: _retry),
+                ),
+              // Floating Instagram-style pill: Messages and Profile only.
+              // Hidden inside a chat, on login pages and while typing.
+              if (NavTabs.showBar(_currentUrl) &&
+                  _error == null &&
+                  MediaQuery.viewInsetsOf(context).bottom == 0)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: isIOS ? math.max(MediaQuery.paddingOf(context).bottom - 12, 12) : 12,
+                  child: Center(
+                    child: NoFeedNavBar(
+                      active: NavTabs.activeTab(_currentUrl, username: _settings.username),
+                      onTap: _onNavTap,
+                    ),
+                  ),
                 ),
             ],
           ),

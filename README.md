@@ -20,7 +20,21 @@ you log in directly on instagram.com and the app never sees your password.
   `onNavigationRequest` and `onUrlChange`.
 - `lib/redirect_guard.dart` limits redirects to one per second and shows an
   error screen after 5 redirects within 10 s (protection against loops).
-- `lib/cosmetic_css.dart` only hides the Home/Explore/Reels buttons with CSS.
+- `lib/cosmetic_css.dart` only hides dead-end buttons with CSS (Home/Explore/
+  Reels links, Instagram's own bottom bar, the ← arrow in the inbox header that
+  leads to the feed). The only JavaScript sets a `data-nofeed-page` attribute on
+  `<html>` and inserts the `<style>`; it never reads the page.
+
+## Bottom navigation
+
+An Instagram-style bar with only **Messages** and **Profile** (`lib/nav_bar.dart`,
+logic in `lib/nav_tabs.dart`). It is hidden inside an open chat and on login
+pages, like in the Instagram app. It also fills the bottom safe area, so there is
+no empty strip under the page.
+
+Profile needs your username: Instagram has no "my profile" URL, and reading the
+name from the page is not allowed (JS is cosmetic only). So the app asks once
+(`@name`), stores it on the device only and you can change it in Settings.
 
 ## Features (phase 2)
 
@@ -44,6 +58,7 @@ you log in directly on instagram.com and the app never sees your password.
 | `lib/dm_screen.dart` | WebView screen, back button, errors, picker & permissions |
 | `lib/settings.dart`, `lib/settings_screen.dart` | settings model, storage and UI |
 | `lib/media_pick_request.dart` | maps `accept="…"` to the right system picker |
+| `lib/nav_bar.dart`, `lib/nav_tabs.dart`, `lib/username_dialog.dart` | bottom navigation |
 | `lib/native_bridge.dart` + `MainActivity.kt` | small Android platform channel |
 | `assets/icon/icon.svg` | app icon source |
 

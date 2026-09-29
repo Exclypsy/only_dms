@@ -18,6 +18,13 @@ void main() {
       expect(s.urlPolicy.decide(story), UrlAction.allow);
     });
 
+    test('username can be set and cleared', () {
+      final withName = const AppSettings().copyWith(username: 'martin');
+      expect(withName.username, 'martin');
+      expect(withName.copyWith(allowStories: false).username, 'martin');
+      expect(withName.copyWith(clearUsername: true).username, isNull);
+    });
+
     test('toggles are reflected in the URL policy', () {
       final s = const AppSettings().copyWith(allowSharedReels: false, allowStories: false);
       expect(s.urlPolicy.decide(reel), UrlAction.redirectToInbox);

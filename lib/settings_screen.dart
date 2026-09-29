@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'settings.dart';
+import 'username_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
@@ -27,6 +28,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _update(AppSettings settings) {
     setState(() => _settings = settings);
     widget.onChanged(settings);
+  }
+
+  Future<void> _editUsername() async {
+    final username = await showUsernameDialog(context, initial: _settings.username);
+    if (username != null) _update(_settings.copyWith(username: username));
   }
 
   Future<void> _confirmLogout() async {
@@ -82,6 +88,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
           const _SectionHeader('Účet'),
+          ListTile(
+            leading: const Icon(Icons.account_circle_outlined),
+            title: const Text('Používateľské meno pre Profil'),
+            subtitle: Text(_settings.username == null ? 'Nenastavené' : '@${_settings.username}'),
+            onTap: _editUsername,
+          ),
           ListTile(
             leading: Icon(Icons.logout, color: theme.colorScheme.error),
             title: Text(
