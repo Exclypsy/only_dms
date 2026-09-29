@@ -293,6 +293,10 @@ class _DmScreenState extends State<DmScreen> {
                     : SystemUiOverlayStyle.dark)
                 .copyWith(statusBarColor: Colors.transparent),
         child: Scaffold(
+          // iOS: WKWebView handles the keyboard itself (like Safari). Resizing
+          // the WebView from Flutter as well would move the page twice and
+          // break the chat composer. Android's WebView needs the resize.
+          resizeToAvoidBottomInset: !isIOS,
           // No toolbar, like the Instagram app: the page starts right under the
           // status bar. Settings: long-press Profile in the navigation pill.
           body: Stack(
