@@ -25,4 +25,19 @@ void main() {
       expect(find.text('Skúsiť znova'), findsOneWidget, reason: kind.name);
     }
   });
+
+  testWidgets('settings are reachable from the error screen', (tester) async {
+    var opened = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ErrorView(
+          kind: LoadErrorKind.generic,
+          onRetry: () {},
+          onOpenSettings: () => opened++,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Nastavenia NoFeed'));
+    expect(opened, 1);
+  });
 }

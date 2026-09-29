@@ -50,6 +50,9 @@ class _DmScreenState extends State<DmScreen> {
 
   /// URL shown right now, for the bottom bar and the cosmetic CSS.
   String? _currentUrl;
+
+  /// Profile picture of the logged-in account (memory only, see viewer_account.dart).
+  Uri? _avatarUrl;
   int _progress = 0;
   LoadErrorKind? _error;
   Brightness? _appliedBrightness;
@@ -165,11 +168,23 @@ class _DmScreenState extends State<DmScreen> {
     final changed = url != _currentUrl;
     if (changed) setState(() => _currentUrl = url);
     _applyCosmetics(url);
-    if (changed && UrlPolicy.isInbox(url)) _detectUsername();
+    if (!changed) return;
+    if (UrlPolicy.isInbox(url)) {
+      _detectAccount();
+    } else if (NavTabs.activeTab(url, username: _settings.username) == NavTab.profile) {
+      // The own profile page has the most reliable picture source.
+      _detectAvatar(inbox: false);
+    }
+  }
+
+  Future<void> _detectAccount() async {
+    final username = await _detectUsername();
+    if (username != null) await _detectAvatar(inbox: true);
+    await _maybeShowSettingsHint();
   }
 
   /// Reads the logged-in username from the inbox header (see
-  /// viewer_username.dart). The header renders a moment after the page, so a
+  /// viewer_account.dart). The header renders a moment after the page, so a
   /// few attempts are made while the inbox is shown. Returns null if not found.
   Future<String?> _detectUsername({int attempts = 5}) async {
     for (var i = 0; i < attempts; i++) {
@@ -190,6 +205,49 @@ class _DmScreenState extends State<DmScreen> {
       }
     }
     return null;
+  }
+
+  /// Reads the profile-picture URL (see viewer_account.dart) while the inbox or
+  /// the own profile is shown. Keeps the old picture if nothing is found.
+  Future<void> _detectAvatar({required bool inbox, int attempts = 4}) async {
+    final username = _settings.username;
+    if (username == null) return;
+    for (var i = 0; i < attempts; i++) {
+      if (i > 0) await Future<void>.delayed(const Duration(milliseconds: 1500));
+      final stillThere = inbox
+          ? UrlPolicy.isInbox(_currentUrl)
+          : NavTabs.activeTab(_currentUrl, username: username) == NavTab.profile;
+      if (!mounted || !stillThere) return;
+      Object? result;
+      try {
+        result = await _controller.runJavaScriptReturningResult(
+          readViewerAvatarScript(username, inbox: inbox),
+        );
+      } on Object {
+        result = null;
+      }
+      final url = parseAvatarUrl(result);
+      if (url != null) {
+        if (mounted && url != _avatarUrl) setState(() => _avatarUrl = url);
+        return;
+      }
+    }
+  }
+
+  /// One-time tip: settings moved from the toolbar to a long-press on Profile.
+  Future<void> _maybeShowSettingsHint() async {
+    if (await widget.store.settingsHintShown() || !mounted) return;
+    await widget.store.markSettingsHintShown();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Tip: podrž ikonu profilu dole a otvoria sa Nastavenia NoFeed.'),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(label: 'Otvoriť', onPressed: _openSettings),
+      ),
+    );
   }
 
   void _requestRedirect() {
@@ -328,6 +386,7 @@ class _DmScreenState extends State<DmScreen> {
     _lastUrl = null;
     if (mounted) setState(() => _error = null);
     // Another account may log in next.
+    if (mounted) setState(() => _avatarUrl = null);
     await _updateSettings(_settings.copyWith(clearUsername: true));
     await _controller.loadRequest(UrlPolicy.loginUri);
   }
@@ -386,50 +445,59 @@ class _DmScreenState extends State<DmScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _handleBack();
       },
-      child: Scaffold(
-        appBar: AppBar(
-          toolbarHeight: 44,
-          title: const Text('NoFeed'),
-          titleTextStyle: Theme.of(context).textTheme.titleMedium,
-          actions: [
-            IconButton(
-              tooltip: 'Nastavenia',
-              icon: const Icon(Icons.settings_outlined),
-              onPressed: _openSettings,
-            ),
-          ],
-        ),
-        body: SafeArea(
-          top: false,
-          // iOS: WKWebView handles the home-indicator area itself and fills it
-          // with the page background, so no empty strip is left at the bottom.
-          bottom: !isIOS,
-          child: Stack(
-            children: [
-              WebViewWidget(controller: _controller),
-              if (_progress < 100 && _error == null)
-                LinearProgressIndicator(value: _progress == 0 ? null : _progress / 100),
-              if (_error case final error?)
-                Positioned.fill(
-                  child: ErrorView(kind: error, onRetry: _retry),
-                ),
-              // Floating Instagram-style pill: Messages and Profile only.
-              // Hidden inside a chat, on login pages and while typing.
-              if (NavTabs.showBar(_currentUrl) &&
-                  _error == null &&
-                  MediaQuery.viewInsetsOf(context).bottom == 0)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: isIOS ? math.max(MediaQuery.paddingOf(context).bottom - 12, 12) : 12,
-                  child: Center(
-                    child: NoFeedNavBar(
-                      active: NavTabs.activeTab(_currentUrl, username: _settings.username),
-                      onTap: _onNavTap,
+      // Status-bar icons must contrast with the page, as there is no toolbar.
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value:
+            (Theme.of(context).brightness == Brightness.dark
+                    ? SystemUiOverlayStyle.light
+                    : SystemUiOverlayStyle.dark)
+                .copyWith(statusBarColor: Colors.transparent),
+        child: Scaffold(
+          // No toolbar, like the Instagram app: the page starts right under the
+          // status bar. Settings: long-press Profile in the navigation pill.
+          body: SafeArea(
+            // iOS: WKWebView handles the status-bar and home-indicator areas
+            // itself (content scrolls underneath, filled with the page colour).
+            top: !isIOS,
+            bottom: !isIOS,
+            child: Stack(
+              children: [
+                WebViewWidget(controller: _controller),
+                if (_progress < 100 && _error == null)
+                  Positioned(
+                    top: isIOS ? MediaQuery.paddingOf(context).top : 0,
+                    left: 0,
+                    right: 0,
+                    child: LinearProgressIndicator(
+                      minHeight: 2,
+                      value: _progress == 0 ? null : _progress / 100,
                     ),
                   ),
-                ),
-            ],
+                if (_error case final error?)
+                  Positioned.fill(
+                    child: ErrorView(kind: error, onRetry: _retry, onOpenSettings: _openSettings),
+                  ),
+                // Floating Instagram-style pill: Messages and Profile only.
+                // Hidden inside a chat, on login pages and while typing.
+                if (NavTabs.showBar(_currentUrl) &&
+                    _error == null &&
+                    MediaQuery.viewInsetsOf(context).bottom == 0)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    // 25 pt above the screen edge on iPhone, as in the Instagram app.
+                    bottom: isIOS ? math.max(MediaQuery.paddingOf(context).bottom - 9, 12) : 12,
+                    child: Center(
+                      child: NoFeedNavBar(
+                        active: NavTabs.activeTab(_currentUrl, username: _settings.username),
+                        avatarUrl: _avatarUrl,
+                        onTap: _onNavTap,
+                        onLongPressProfile: _openSettings,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

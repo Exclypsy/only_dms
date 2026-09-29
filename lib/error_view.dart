@@ -4,10 +4,13 @@ enum LoadErrorKind { offline, generic, redirectLoop }
 
 /// Full-screen error shown instead of a blank page.
 class ErrorView extends StatelessWidget {
-  const ErrorView({super.key, required this.kind, required this.onRetry});
+  const ErrorView({super.key, required this.kind, required this.onRetry, this.onOpenSettings});
 
   final LoadErrorKind kind;
   final VoidCallback onRetry;
+
+  /// There is no toolbar, so settings stay reachable from the error screen.
+  final VoidCallback? onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +52,10 @@ class ErrorView extends StatelessWidget {
                 icon: const Icon(Icons.refresh),
                 label: const Text('Skúsiť znova'),
               ),
+              if (onOpenSettings != null) ...[
+                const SizedBox(height: 8),
+                TextButton(onPressed: onOpenSettings, child: const Text('Nastavenia NoFeed')),
+              ],
             ],
           ),
         ),

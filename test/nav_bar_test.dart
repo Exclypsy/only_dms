@@ -26,6 +26,44 @@ void main() {
     expect(taps, [NavTab.profile, NavTab.messages]);
   });
 
+  testWidgets('long-press on Profile opens settings', (tester) async {
+    var longPresses = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: NoFeedNavBar(
+              active: NavTab.messages,
+              onTap: (_) {},
+              onLongPressProfile: () => longPresses++,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.longPress(find.bySemanticsLabel('Profil'));
+    expect(longPresses, 1);
+  });
+
+  testWidgets('profile picture falls back to an icon if it fails to load', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: NoFeedNavBar(
+              active: NavTab.profile,
+              onTap: (_) {},
+              // Tests have no network: the image fails and the icon is shown.
+              avatarUrl: Uri.parse('https://scontent.cdninstagram.com/a.jpg'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.account_circle), findsOneWidget);
+  });
+
   group('username dialog', () {
     Future<void> openDialog(WidgetTester tester, void Function(String?) onResult) async {
       await tester.pumpWidget(

@@ -59,6 +59,13 @@ class SettingsStore {
     );
   }
 
+  static const _settingsHintShown = 'settings_hint_shown';
+
+  /// Whether the one-time "long-press Profile for settings" tip was shown.
+  Future<bool> settingsHintShown() async => await _prefs.getBool(_settingsHintShown) ?? false;
+
+  Future<void> markSettingsHintShown() => _prefs.setBool(_settingsHintShown, true);
+
   Future<void> save(AppSettings settings) async {
     await _prefs.setBool(_allowSharedReels, settings.allowSharedReels);
     await _prefs.setBool(_allowStories, settings.allowStories);

@@ -71,23 +71,20 @@ class NoFeedNavBar extends StatelessWidget {
                   label: 'Správy',
                   selected: active == NavTab.messages,
                   // Paper plane tilted up like Instagram's Direct icon.
+                  onTap: () => onTap(NavTab.messages),
                   child: Transform.rotate(
                     angle: -math.pi / 7,
                     child: Icon(active == NavTab.messages ? Icons.send : Icons.send_outlined),
                   ),
-                  onTap: () => onTap(NavTab.messages),
                 ),
                 const SizedBox(width: 24),
                 _NavItem(
                   label: 'Profil',
                   hint: 'Podrž pre nastavenia NoFeed',
                   selected: active == NavTab.profile,
-                  child: _ProfileIcon(
-                    avatarUrl: avatarUrl,
-                    selected: active == NavTab.profile,
-                  ),
                   onTap: () => onTap(NavTab.profile),
                   onLongPress: onLongPressProfile,
+                  child: _ProfileIcon(avatarUrl: avatarUrl, selected: active == NavTab.profile),
                 ),
               ],
             ),
