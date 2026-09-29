@@ -69,8 +69,12 @@ class _DmScreenState extends State<DmScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Match the WebView background to the system theme so it never flashes white.
+    // Only Android and iOS are supported targets (macOS WebKit throws here).
     final brightness = MediaQuery.platformBrightnessOf(context);
-    if (brightness != _appliedBrightness) {
+    final supported =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    if (supported && brightness != _appliedBrightness) {
       _appliedBrightness = brightness;
       _controller.setBackgroundColor(
         brightness == Brightness.dark ? darkBackground : lightBackground,
