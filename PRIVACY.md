@@ -15,8 +15,10 @@ crash reporting. The developer never receives any of your data.
   store, log or send your password, cookies, tokens, messages or browsing
   history.
 - The JavaScript the app adds to the page inserts a style sheet that hides some
-  buttons. The only thing it ever reads is your own username (see below), so the
-  Profile button can open your profile.
+  buttons. The only things it ever reads are your own username and the address
+  of your own profile picture (see below), so the Profile button can open your
+  profile and show your picture. The picture is loaded from Instagram's image
+  server and kept only in memory.
 
 ## Permissions
 

@@ -12,6 +12,7 @@ import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'app_colors.dart';
 import 'cosmetic_css.dart';
 import 'error_view.dart';
+import 'header_reveal.dart';
 import 'media_pick_request.dart';
 import 'nav_bar.dart';
 import 'nav_tabs.dart';
@@ -42,6 +43,10 @@ class _DmScreenState extends State<DmScreen> {
 
   late AppSettings _settings = widget.initialSettings;
   late UrlPolicy _policy = _settings.urlPolicy;
+  final HeaderReveal _headerReveal = HeaderReveal();
+  HeaderFrame? _sentHeaderFrame;
+  bool _sentHeaderAnimated = false;
+  Timer? _headerSettleTimer;
   final RedirectGuard _redirectGuard = RedirectGuard(maxRedirects: 5);
   late final WebViewController _controller;
 
@@ -81,6 +86,8 @@ class _DmScreenState extends State<DmScreen> {
             ),
           );
 
+    _controller.setOnScrollPositionChange(_onScroll);
+
     final platform = _controller.platform;
     if (platform is AndroidWebViewController) {
       // Remote debugging only in debug builds.
@@ -97,7 +104,11 @@ class _DmScreenState extends State<DmScreen> {
         // iOS has no Back button: swipe from the edge to go back, like Safari.
         ..setAllowsBackForwardNavigationGestures(true)
         // Long-press previews would load links outside UrlPolicy.
-        ..setAllowsLinkPreview(false);
+        ..setAllowsLinkPreview(false)
+        // Rubber-band only pages that really scroll (inbox, profile). Fixed
+        // full-screen layouts like a chat keep their header in place; scroll
+        // areas inside them still bounce natively.
+        ..setOverScrollMode(WebViewOverScrollMode.ifContentScrolls);
       // <input type="file"> is handled by WebKit itself (system photo picker,
       // camera needs NSCameraUsageDescription in Info.plist).
     }
@@ -116,6 +127,9 @@ class _DmScreenState extends State<DmScreen> {
         defaultTargetPlatform == TargetPlatform.iOS;
     if (supported && brightness != _appliedBrightness) {
       _appliedBrightness = brightness;
+      // The sticky inbox header uses the page colour of the current theme.
+      final url = _currentUrl;
+      if (url != null) _applyCosmetics(url);
       _controller.setBackgroundColor(
         brightness == Brightness.dark ? darkBackground : lightBackground,
       );
@@ -125,6 +139,7 @@ class _DmScreenState extends State<DmScreen> {
   @override
   void dispose() {
     _redirectTimer?.cancel();
+    _headerSettleTimer?.cancel();
     super.dispose();
   }
 
@@ -169,6 +184,10 @@ class _DmScreenState extends State<DmScreen> {
     if (changed) setState(() => _currentUrl = url);
     _applyCosmetics(url);
     if (!changed) return;
+    _headerSettleTimer?.cancel();
+    _headerReveal.reset();
+    _sentHeaderFrame = null;
+    _sendHeaderFrame(_headerReveal.frame, animate: false);
     if (UrlPolicy.isInbox(url)) {
       _detectAccount();
     } else if (NavTabs.activeTab(url, username: _settings.username) == NavTab.profile) {
@@ -227,9 +246,6 @@ class _DmScreenState extends State<DmScreen> {
         result = null;
       }
       final url = parseAvatarUrl(result);
-      debugPrint(
-        'NOFEED_AVATAR_DEBUG inbox=$inbox try=$i empty=${result == '' || result == '""'} host=${url?.host}',
-      );
       if (url != null) {
         if (mounted && url != _avatarUrl) setState(() => _avatarUrl = url);
         return;
@@ -348,10 +364,60 @@ class _DmScreenState extends State<DmScreen> {
     });
   }
 
+  /// Native scroll position of the page → Instagram-style header in the inbox.
+  /// The header follows the finger while scrolling and settles (eased) once
+  /// the scrolling stops, like in the Instagram app.
+  void _onScroll(ScrollPositionChange change) {
+    if (!UrlPolicy.isInbox(_currentUrl)) return;
+    _sendHeaderFrame(_headerReveal.update(change.y), animate: false);
+    _headerSettleTimer?.cancel();
+    _headerSettleTimer = Timer(
+      const Duration(milliseconds: 120),
+      () => _sendHeaderFrame(_headerReveal.settle(), animate: true),
+    );
+  }
+
+  /// Sends a header frame to the page, skipping tiny changes so the WebView is
+  /// not flooded with calls while scrolling.
+  void _sendHeaderFrame(HeaderFrame frame, {required bool animate}) {
+    final last = _sentHeaderFrame;
+    if (last != null) {
+      if (last == frame && animate == _sentHeaderAnimated) return;
+      final tiny =
+          (last.text - frame.text).abs() < 0.02 && (last.backdrop - frame.backdrop).abs() < 0.02;
+      if (!animate && tiny && last.state == frame.state) return;
+    }
+    _sentHeaderFrame = frame;
+    _sentHeaderAnimated = animate;
+    _runCosmetic(headerFrameScript(frame, animate: animate));
+  }
+
+  Future<void> _runCosmetic(String script) async {
+    try {
+      await _controller.runJavaScript(script);
+    } on Object {
+      // Cosmetic only; ignore failures (e.g. page navigated away meanwhile).
+    }
+  }
+
+  /// iPhone inbox: the page reaches under the status bar and scrolls
+  /// underneath a blurred band, like the Instagram app. Other pages keep the
+  /// safe area, as their fixed headers would end up under the Dynamic Island.
+  bool _edgeToEdge(String? url) =>
+      defaultTargetPlatform == TargetPlatform.iOS && UrlPolicy.isInbox(url) && _error == null;
+
+  static String _cssColor(Color c) =>
+      '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
+
   Future<void> _applyCosmetics(String url) async {
     try {
       await _controller.runJavaScript(
-        cosmeticScript(isInbox: UrlPolicy.isInbox(url), navBar: NavTabs.showBar(url)),
+        cosmeticScript(
+          isInbox: UrlPolicy.isInbox(url),
+          navBar: NavTabs.showBar(url),
+          background: _cssColor(Theme.of(context).scaffoldBackgroundColor),
+          edgeToEdge: _edgeToEdge(url),
+        ),
       );
     } on Object {
       // Cosmetic only; ignore failures (e.g. page navigated away meanwhile).
@@ -459,16 +525,17 @@ class _DmScreenState extends State<DmScreen> {
           // No toolbar, like the Instagram app: the page starts right under the
           // status bar. Settings: long-press Profile in the navigation pill.
           body: SafeArea(
-            // iOS: WKWebView handles the home-indicator area itself (content
-            // scrolls underneath the pill, filled with the page colour). The top
-            // is not handled by WebKit, so the status bar keeps its safe area.
+            // iPhone inbox: the page reaches under the status bar (blurred band
+            // drawn by the page's CSS). Elsewhere the status bar keeps its safe
+            // area. Bottom on iOS: WKWebView handles the home indicator itself.
+            top: !_edgeToEdge(_currentUrl),
             bottom: !isIOS,
             child: Stack(
               children: [
                 WebViewWidget(controller: _controller),
                 if (_progress < 100 && _error == null)
                   Positioned(
-                    top: 0,
+                    top: _edgeToEdge(_currentUrl) ? MediaQuery.paddingOf(context).top : 0,
                     left: 0,
                     right: 0,
                     child: LinearProgressIndicator(

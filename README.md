@@ -25,21 +25,39 @@ you log in directly on instagram.com and the app never sees your password.
   leads to the feed). This script only sets `data-nofeed-*` attributes on
   `<html>` and inserts the `<style>`; it never reads the page.
 
-## Bottom navigation
+## Look & feel (like the Instagram app)
 
-A floating, Instagram-style navigation pill with only **Messages** and
-**Profile** (`lib/nav_bar.dart`, logic in `lib/nav_tabs.dart`): translucent
-blurred capsule, the active item highlighted. The page runs all the way to the
-bottom edge underneath it (no empty strip); CSS adds room at the end of the page
-so the last item can scroll above the pill. The pill is hidden inside an open
-chat, on login pages and while the keyboard is open.
+- **No toolbar**: the page starts right under the status bar; the dark theme uses
+  Instagram's background colour (#0C1014).
+- **Floating navigation pill** with only **Messages** and **Profile**
+  (`lib/nav_bar.dart`, logic in `lib/nav_tabs.dart`): translucent blurred capsule,
+  active item highlighted, your profile picture on the Profile item. Hidden inside
+  an open chat, on login pages and while the keyboard is open.
+- **Settings**: long-press Profile in the pill (a one-time tip explains it); also
+  reachable from the error screen.
+- **Inbox scrolling** (`lib/cosmetic_css.dart`, `lib/header_reveal.dart`): the
+  header, search bar, notes and chats scroll together as one native page (the
+  web version only scrolls the chat list box).
+  - Near the top the search bar slides under the username on a blurred
+    backdrop while the username fades out with the scroll.
+  - Further down the username fades back in as you scroll up, following the
+    finger, and settles (eased) when scrolling stops.
+  - On iPhone the inbox reaches under the status bar, where the content passes
+    beneath a blurred, tinted band (CSS `backdrop-filter` with a mask).
+  - The app reads the WebView's native scroll position and only writes two CSS
+    variables and a few `data-nofeed-*` attributes; the injected JavaScript
+    never reads the page for this.
+
+### Profile button and picture
 
 Profile opens the account you are logged in with. Instagram has no "my
-profile" URL, so `lib/viewer_username.dart` reads **only the username** from the
-inbox header – the single, documented exception to "JS is cosmetic only"
-(CLAUDE.md §4, approved 29 Sep 2026). The name is validated, stored on the device
-only and deleted on logout. If Instagram changes its page and the name can't be
-found, the app asks for it instead.
+profile" URL, so `lib/viewer_account.dart` reads **only the username** (inbox
+header) and **only the address of your profile picture** – the single,
+documented exception to "JS is cosmetic only" (CLAUDE.md §4, approved 29 Sep
+2026). The name is validated, stored on the device and deleted on logout; the
+picture URL must be HTTPS from Instagram's/Facebook's CDN, the image is loaded
+from there and kept in memory only. If Instagram changes its page, the app asks
+for the name and shows a person icon instead.
 
 ## Features (phase 2)
 
@@ -64,7 +82,8 @@ found, the app asks for it instead.
 | `lib/settings.dart`, `lib/settings_screen.dart` | settings model, storage and UI |
 | `lib/media_pick_request.dart` | maps `accept="…"` to the right system picker |
 | `lib/nav_bar.dart`, `lib/nav_tabs.dart`, `lib/username_dialog.dart` | bottom navigation |
-| `lib/viewer_username.dart` | reads only the logged-in username (the one JS exception) |
+| `lib/viewer_account.dart` | reads only the logged-in username and profile-picture URL (the one JS exception) |
+| `lib/header_reveal.dart` | hide/show the inbox header on scroll |
 | `lib/native_bridge.dart` + `MainActivity.kt` | small Android platform channel |
 | `assets/icon/icon.svg` | app icon source |
 
