@@ -22,19 +22,24 @@ you log in directly on instagram.com and the app never sees your password.
   error screen after 5 redirects within 10 s (protection against loops).
 - `lib/cosmetic_css.dart` only hides dead-end buttons with CSS (Home/Explore/
   Reels links, Instagram's own bottom bar, the ← arrow in the inbox header that
-  leads to the feed). The only JavaScript sets a `data-nofeed-page` attribute on
+  leads to the feed). This script only sets `data-nofeed-*` attributes on
   `<html>` and inserts the `<style>`; it never reads the page.
 
 ## Bottom navigation
 
-An Instagram-style bar with only **Messages** and **Profile** (`lib/nav_bar.dart`,
-logic in `lib/nav_tabs.dart`). It is hidden inside an open chat and on login
-pages, like in the Instagram app. It also fills the bottom safe area, so there is
-no empty strip under the page.
+A floating, Instagram-style navigation pill with only **Messages** and
+**Profile** (`lib/nav_bar.dart`, logic in `lib/nav_tabs.dart`): translucent
+blurred capsule, the active item highlighted. The page runs all the way to the
+bottom edge underneath it (no empty strip); CSS adds room at the end of the page
+so the last item can scroll above the pill. The pill is hidden inside an open
+chat, on login pages and while the keyboard is open.
 
-Profile needs your username: Instagram has no "my profile" URL, and reading the
-name from the page is not allowed (JS is cosmetic only). So the app asks once
-(`@name`), stores it on the device only and you can change it in Settings.
+Profile opens the account you are logged in with. Instagram has no "my
+profile" URL, so `lib/viewer_username.dart` reads **only the username** from the
+inbox header – the single, documented exception to "JS is cosmetic only"
+(CLAUDE.md §4, approved 29 Sep 2026). The name is validated, stored on the device
+only and deleted on logout. If Instagram changes its page and the name can't be
+found, the app asks for it instead.
 
 ## Features (phase 2)
 
@@ -59,6 +64,7 @@ name from the page is not allowed (JS is cosmetic only). So the app asks once
 | `lib/settings.dart`, `lib/settings_screen.dart` | settings model, storage and UI |
 | `lib/media_pick_request.dart` | maps `accept="…"` to the right system picker |
 | `lib/nav_bar.dart`, `lib/nav_tabs.dart`, `lib/username_dialog.dart` | bottom navigation |
+| `lib/viewer_username.dart` | reads only the logged-in username (the one JS exception) |
 | `lib/native_bridge.dart` + `MainActivity.kt` | small Android platform channel |
 | `assets/icon/icon.svg` | app icon source |
 

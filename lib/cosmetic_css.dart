@@ -11,9 +11,10 @@ a[href="/reels/"] {
   display: none !important;
 }
 
-/* Instagram's own bottom tab bar (NoFeed shows its own): the element that
-   directly holds both the Explore and the Messages tab (max. two levels). */
-:is(div, nav):has(> a[href="/explore/"], > * > a[href="/explore/"]):has(> a[href="/direct/inbox/"], > * > a[href="/direct/inbox/"]) {
+/* Instagram's own bottom tab bar (NoFeed shows its own pill). Matched by its
+   exact structure down to the Explore tab (as of Sep 2026), so it can never
+   hide anything larger; if Instagram changes it, the rule simply stops matching. */
+div:has(> div[tabindex="-1"] > div > div > div > div[data-visualcompletion="ignore-dynamic"] > div > span > div > a[href="/explore/"]) {
   display: none !important;
 }
 

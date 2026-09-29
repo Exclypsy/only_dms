@@ -14,8 +14,9 @@ crash reporting. The developer never receives any of your data.
 - You log in directly on instagram.com inside the app. The app does not read,
   store, log or send your password, cookies, tokens, messages or browsing
   history.
-- The only JavaScript the app adds to the page inserts a style sheet that hides
-  some buttons. It does not read the page.
+- The JavaScript the app adds to the page inserts a style sheet that hides some
+  buttons. The only thing it ever reads is your own username (see below), so the
+  Profile button can open your profile.
 
 ## Permissions
 
@@ -32,8 +33,10 @@ Like any web browser, the built-in WebView stores cookies, cache and local
 storage for instagram.com so you stay logged in. This data:
 
 - stays only on your device,
-- together with your app settings (reels/stories toggles and the Instagram
-  username you typed in for the Profile button),
+- together with your app settings (reels/stories toggles) and your Instagram
+  username for the Profile button. To find it, the app reads only the username
+  shown in the inbox header – nothing else on the page. It is deleted when you
+  log out,
 - is excluded from Android cloud backup and device-to-device transfer.
 
 ## How to delete it

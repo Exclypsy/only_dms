@@ -90,8 +90,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const _SectionHeader('Účet'),
           ListTile(
             leading: const Icon(Icons.account_circle_outlined),
-            title: const Text('Používateľské meno pre Profil'),
-            subtitle: Text(_settings.username == null ? 'Nenastavené' : '@${_settings.username}'),
+            title: const Text('Účet pre tlačidlo Profil'),
+            subtitle: Text(
+              _settings.username == null
+                  ? 'Zistí sa automaticky po načítaní správ'
+                  : '@${_settings.username}',
+            ),
             onTap: _editUsername,
           ),
           ListTile(

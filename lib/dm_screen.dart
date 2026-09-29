@@ -21,6 +21,7 @@ import 'settings.dart';
 import 'settings_screen.dart';
 import 'url_policy.dart';
 import 'username_dialog.dart';
+import 'viewer_account.dart';
 
 class DmScreen extends StatefulWidget {
   const DmScreen({super.key, required this.initialSettings, required this.store});
@@ -161,8 +162,34 @@ class _DmScreenState extends State<DmScreen> {
   }
 
   void _setCurrentUrl(String url) {
-    if (url != _currentUrl) setState(() => _currentUrl = url);
+    final changed = url != _currentUrl;
+    if (changed) setState(() => _currentUrl = url);
     _applyCosmetics(url);
+    if (changed && UrlPolicy.isInbox(url)) _detectUsername();
+  }
+
+  /// Reads the logged-in username from the inbox header (see
+  /// viewer_username.dart). The header renders a moment after the page, so a
+  /// few attempts are made while the inbox is shown. Returns null if not found.
+  Future<String?> _detectUsername({int attempts = 5}) async {
+    for (var i = 0; i < attempts; i++) {
+      if (i > 0) await Future<void>.delayed(const Duration(milliseconds: 1500));
+      if (!mounted || !UrlPolicy.isInbox(_currentUrl)) return null;
+      Object? result;
+      try {
+        result = await _controller.runJavaScriptReturningResult(readViewerUsernameScript);
+      } on Object {
+        result = null;
+      }
+      final username = parseViewerUsername(result);
+      if (username != null) {
+        if (username != _settings.username) {
+          await _updateSettings(_settings.copyWith(username: username));
+        }
+        return username;
+      }
+    }
+    return null;
   }
 
   void _requestRedirect() {
@@ -300,6 +327,8 @@ class _DmScreenState extends State<DmScreen> {
     _redirectGuard.reset();
     _lastUrl = null;
     if (mounted) setState(() => _error = null);
+    // Another account may log in next.
+    await _updateSettings(_settings.copyWith(clearUsername: true));
     await _controller.loadRequest(UrlPolicy.loginUri);
   }
 
@@ -308,8 +337,11 @@ class _DmScreenState extends State<DmScreen> {
       case NavTab.messages:
         if (!UrlPolicy.isInbox(_currentUrl)) _loadInbox();
       case NavTab.profile:
-        var username = _settings.username;
+        // Normally already detected in the inbox; ask only as a fallback
+        // (e.g. if Instagram changed its page and the name can't be found).
+        var username = _settings.username ?? await _detectUsername(attempts: 1);
         if (username == null) {
+          if (!mounted) return;
           username = await showUsernameDialog(context);
           if (username == null) return;
           await _updateSettings(_settings.copyWith(username: username));
