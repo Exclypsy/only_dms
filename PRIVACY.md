@@ -55,6 +55,14 @@ are encrypted while the phone is locked. They are deleted when you log out or
 turn off Settings → Súkromie → "Okamžité otváranie chatov". NoFeed never opens
 chats on its own.
 
+## Chat backgrounds (optional)
+
+If you choose a photo as a chat background, you pick it in the system photo
+picker – the app gets only that one photo, not access to your library. A
+scaled-down copy is stored in the app's private folder on your device, is not
+included in backups and is never sent anywhere (Instagram does not receive it
+either). Remove it in Settings → Vzhľad or by holding the chat's header.
+
 ## What is stored on your device
 
 Like any web browser, the built-in WebView stores cookies, cache and local
@@ -62,8 +70,9 @@ storage for instagram.com so you stay logged in. This data:
 
 - stays only on your device,
 - together with your app settings, your Instagram username for the Profile
-  button (read from the inbox header; deleted when you log out) and, if instant
-  chats are on, the pictures of opened chats described above,
+  button (read from the inbox header; deleted when you log out), the chat
+  backgrounds you chose and, if instant chats are on, the pictures of opened
+  chats described above,
 - is excluded from Android cloud backup and device-to-device transfer.
 
 ## How to delete it

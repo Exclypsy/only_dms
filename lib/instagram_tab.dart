@@ -11,6 +11,8 @@ import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 import 'app_colors.dart';
 import 'chat_keyboard.dart';
 import 'chat_snapshot.dart';
+import 'chat_wallpaper.dart';
+import 'chat_wallpaper_store.dart';
 import 'cosmetic_css.dart';
 import 'error_view.dart';
 import 'header_reveal.dart';
@@ -40,7 +42,11 @@ class InstagramTab extends ChangeNotifier {
     this._chatSnapshots,
     this._canCaptureChat,
     this._loadPlaceholders,
+    this._wallpapers,
+    this._wallpaperDim,
+    this._onChatHeaderHold,
   }) {
+    _wallpapers?.addListener(refreshWallpaper);
     // iOS: play videos inline in the chat instead of forcing full screen.
     final PlatformWebViewControllerCreationParams params =
         WebViewPlatform.instance is WebKitWebViewPlatform
@@ -60,6 +66,8 @@ class InstagramTab extends ChangeNotifier {
                 progress = value;
                 _notify();
               },
+              // A new document: backgrounds put into the old one are gone.
+              onPageStarted: (_) => _installedWallpapers.clear(),
               onPageFinished: _onPageFinished,
               onWebResourceError: _onWebResourceError,
             ),
@@ -124,6 +132,24 @@ class InstagramTab extends ChangeNotifier {
   /// Whether a skeleton may be shown while the tab's start page loads. False
   /// before the first login, when the login page is what will appear.
   final bool Function()? _loadPlaceholders;
+
+  /// Custom chat backgrounds (see chat_wallpaper.dart) and how much they are
+  /// dimmed.
+  final ChatWallpaperStore? _wallpapers;
+  final double Function()? _wallpaperDim;
+
+  /// The header of an open chat was held down (menu for this chat).
+  final void Function(InstagramTab tab)? _onChatHeaderHold;
+
+  /// Height of the header of a chat page (logical px).
+  static const double chatHeaderHeight = 60;
+
+  /// Backgrounds already put into the current document: key → revision.
+  final Map<String, int> _installedWallpapers = {};
+  bool _wallpaperShown = false;
+
+  Timer? _headerHoldTimer;
+  Offset? _headerHoldStart;
 
   final RedirectGuard _redirectGuard = RedirectGuard(maxRedirects: 5);
   Timer? _redirectTimer;
@@ -208,6 +234,7 @@ class InstagramTab extends ChangeNotifier {
     controller.setBackgroundColor(_dark ? darkBackground : lightBackground);
     final url = currentUrl;
     if (url != null) _applyCosmetics(url);
+    refreshWallpaper();
   }
 
   /// Runs a read-only script (see viewer_account.dart); null on failure.
@@ -231,16 +258,37 @@ class InstagramTab extends ChangeNotifier {
 
   /// Touches on the page (see [ChatKeyboard]); only used in a chat.
   void pointerDown(Offset position, double height) {
-    if (UrlPolicy.isChat(currentUrl)) _chatKeyboard.pointerDown(position, height);
+    if (!UrlPolicy.isChat(currentUrl)) return;
+    _chatKeyboard.pointerDown(position, height);
+    // Holding the chat's header opens NoFeed's menu for this chat.
+    final onHold = _onChatHeaderHold;
+    if (onHold != null && position.dy < chatHeaderHeight && placeholder == null) {
+      _headerHoldStart = position;
+      _headerHoldTimer?.cancel();
+      _headerHoldTimer = Timer(const Duration(milliseconds: 600), () {
+        _headerHoldStart = null;
+        if (!_disposed && UrlPolicy.isChat(currentUrl)) onHold(this);
+      });
+    }
+  }
+
+  void pointerCancel() => _cancelHeaderHold();
+
+  void _cancelHeaderHold() {
+    _headerHoldTimer?.cancel();
+    _headerHoldStart = null;
   }
 
   void pointerMove(Offset position) {
+    final holdStart = _headerHoldStart;
+    if (holdStart != null && (position - holdStart).distance > 10) _cancelHeaderHold();
     if (_keyboardVisible && UrlPolicy.isChat(currentUrl) && _chatKeyboard.pointerMove(position)) {
       _dismissKeyboard();
     }
   }
 
   void pointerUp(Offset position) {
+    _cancelHeaderHold();
     _captureDue = true;
     if (_keyboardVisible && UrlPolicy.isChat(currentUrl) && _chatKeyboard.pointerUp(position)) {
       _dismissKeyboard();
@@ -249,9 +297,50 @@ class InstagramTab extends ChangeNotifier {
 
   void _dismissKeyboard() => NativeBridge.dismissKeyboard(webViewId: _nativeId);
 
+  /// Shows the right custom background for the current page (none outside a
+  /// chat). Called when the page, the saved backgrounds or the dimming change.
+  Future<void> refreshWallpaper() async {
+    final store = _wallpapers;
+    final url = currentUrl;
+    if (store == null || _disposed || !UrlPolicy.isChat(url)) return;
+    final key = resolveWallpaperKey(url, store.keys);
+    if (key == null) {
+      if (_wallpaperShown) {
+        _wallpaperShown = false;
+        await _runCosmetic(selectWallpaperScript(null, background: '#000000', dim: 0));
+      }
+      return;
+    }
+    _wallpaperShown = true;
+    final background = _pageBackground();
+    final dim = _wallpaperDim?.call() ?? defaultWallpaperDim;
+    // Times and names written straight on the photo: black on a light
+    // background, white on a dark one.
+    final average = await store.averageColor(key);
+    if (_disposed || currentUrl != url) return;
+    await _runCosmetic(
+      selectWallpaperScript(
+        key,
+        background: background,
+        dim: dim,
+        darkText: average == null
+            ? null
+            : wallpaperNeedsDarkText(photo: average, background: background, dim: dim),
+      ),
+    );
+    final revision = store.revision(key);
+    if (_installedWallpapers[key] == revision) return;
+    final image = await store.base64(key);
+    if (image == null || _disposed) return;
+    _installedWallpapers[key] = revision;
+    await _runCosmetic(installWallpaperScript(key, image));
+  }
+
   @override
   void dispose() {
     _disposed = true;
+    _wallpapers?.removeListener(refreshWallpaper);
+    _headerHoldTimer?.cancel();
     _redirectTimer?.cancel();
     _headerSettleTimer?.cancel();
     super.dispose();
@@ -307,6 +396,7 @@ class InstagramTab extends ChangeNotifier {
     _applyCosmetics(url);
     if (!changed) return;
     if (UrlPolicy.isChat(url)) _chatKeyboard.chatOpened();
+    refreshWallpaper();
     _pageChanged(url);
     _headerSettleTimer?.cancel();
     _headerReveal.reset();
@@ -564,6 +654,7 @@ class InstagramTab extends ChangeNotifier {
       navBar: NavTabs.showBar(url),
       background: _pageBackground(),
       edgeToEdge: _edgeToEdge(url),
+      isChat: UrlPolicy.isChat(url),
     ),
   );
 }
@@ -597,6 +688,7 @@ class InstagramTabView extends StatelessWidget {
                   onPointerDown: (e) => tab.pointerDown(e.localPosition, constraints.maxHeight),
                   onPointerMove: (e) => tab.pointerMove(e.localPosition),
                   onPointerUp: (e) => tab.pointerUp(e.localPosition),
+                  onPointerCancel: (_) => tab.pointerCancel(),
                   child: WebViewWidget(controller: tab.controller),
                 ),
               ),

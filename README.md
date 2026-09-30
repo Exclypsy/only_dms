@@ -59,6 +59,16 @@ you log in directly on instagram.com and the app never sees your password.
   drawn yet?") – no text, names or images.
 - **Tapping the active tab again** goes back to its start page, or scrolls to
   the top if it is already there.
+- **Custom chat backgrounds** (`lib/chat_wallpaper.dart`, Settings → Vzhľad):
+  pick a photo in the system photo picker (no photo permission) as the
+  background behind the messages – for all chats, or for one chat by holding
+  that chat's header. The photo is scaled down (max. 1600 px), stored only on
+  the device and put into the page as a CSS background of the message list;
+  the scripts only write a `<style>`, one attribute and CSS variables. Times
+  and names written straight on the photo turn black on a light photo and
+  white on a dark one (average brightness of the photo, no text shadow); a
+  slider dims busy photos. Instagram draws a wide outline in the page colour
+  around each bubble to round it – that outline is made transparent.
 - **Instant chats** (`lib/chat_snapshot.dart`, Settings → Súkromie, on by
   default): NoFeed keeps a picture of each chat you open and shows it at once
   the next time, until Instagram has loaded the live chat (about a second) and
@@ -140,6 +150,7 @@ for the name and shows a person icon instead.
 | `lib/chat_keyboard.dart` | when to close the keyboard in a chat |
 | `lib/chat_snapshot.dart` + `ChatSnapshots.kt`, `AppDelegate.swift` | pictures of opened chats for instant opening |
 | `lib/page_placeholder.dart`, `lib/page_skeleton.dart` | loading skeletons and the "page is drawn" check |
+| `lib/chat_wallpaper.dart`, `lib/chat_wallpaper_store.dart`, `lib/chat_wallpaper_tile.dart` + `ChatWallpapers.kt`, `AppDelegate.swift` | custom chat backgrounds |
 | `lib/native_bridge.dart` + `MainActivity.kt`, `AppDelegate.swift` | small platform channel |
 | `assets/icon/icon.svg` | app icon source |
 
@@ -259,6 +270,10 @@ magick -background none -density 72 assets/icon/icon.svg -resize 1024x1024 -alph
 - No real push notifications: notifications work only while NoFeed runs (see
   above), and they depend on the layout of Instagram's chat list.
 - Instant chats show a picture that can be a few messages old for a moment.
+- Chat backgrounds: one text colour is chosen for the whole photo, so on a
+  photo with very light and very dark areas some times/names are harder to
+  read (use the dimming slider). On Android 7–8 a photo's rotation tag is not
+  applied.
 - Camera/microphone access is decided by the main-frame URL, because neither
   `webview_flutter_android` nor `webview_flutter_wkwebview` exposes the
   requesting origin. The main frame is always Instagram (`UrlPolicy`).

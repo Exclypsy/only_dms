@@ -109,6 +109,46 @@ class NativeBridge {
     }
   }
 
+  /// Opens the system photo picker and saves the chosen photo as the chat
+  /// background [key] (see chat_wallpaper.dart). False if nothing was picked.
+  static Future<bool> pickWallpaper(String key) async {
+    if (!_isAndroid && !_isIOS) return false;
+    try {
+      return await _channel.invokeMethod<bool>('pickWallpaper', {'key': key}) ?? false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// The saved chat background [key] (JPEG bytes), or null.
+  static Future<Uint8List?> loadWallpaper(String key) async {
+    if (!_isAndroid && !_isIOS) return null;
+    try {
+      return await _channel.invokeMethod<Uint8List>('loadWallpaper', {'key': key});
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  static Future<void> removeWallpaper(String key) async {
+    if (!_isAndroid && !_isIOS) return;
+    try {
+      await _channel.invokeMethod<void>('removeWallpaper', {'key': key});
+    } on PlatformException {
+      // Best effort.
+    }
+  }
+
+  /// Keys of all saved chat backgrounds.
+  static Future<Set<String>> listWallpapers() async {
+    if (!_isAndroid && !_isIOS) return const {};
+    try {
+      return (await _channel.invokeListMethod<String>('listWallpapers'))?.toSet() ?? const {};
+    } on PlatformException {
+      return const {};
+    }
+  }
+
   /// Turns FLAG_SECURE on or off for the app window.
   static Future<void> setSecure(bool secure) async {
     if (!_isAndroid) return;

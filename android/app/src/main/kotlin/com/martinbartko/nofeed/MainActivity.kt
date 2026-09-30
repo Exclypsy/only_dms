@@ -23,10 +23,13 @@ import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
  *  - setKeepAlive: KeepAliveService on/off
  *  - dismissKeyboard: closes the soft keyboard (chat, see lib/chat_keyboard.dart)
  *  - saveChatSnapshot / loadChatSnapshot / clearChatSnapshots: ChatSnapshots.kt
+ *  - pickWallpaper / loadWallpaper / removeWallpaper / listWallpapers: ChatWallpapers.kt
  */
 class MainActivity : FlutterActivity() {
     private var pendingPick: MethodChannel.Result? = null
     private var pendingPermissions: MethodChannel.Result? = null
+    private var pendingWallpaper: MethodChannel.Result? = null
+    private var pendingWallpaperKey: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -68,6 +71,16 @@ class MainActivity : FlutterActivity() {
                         ChatSnapshots.clear(this)
                         result.success(null)
                     }
+                    "pickWallpaper" -> pickWallpaper(call, result)
+                    "loadWallpaper" ->
+                        ChatWallpapers.load(this, call.argument<String>("key") ?: "") {
+                            result.success(it)
+                        }
+                    "removeWallpaper" ->
+                        ChatWallpapers.remove(this, call.argument<String>("key") ?: "") {
+                            result.success(null)
+                        }
+                    "listWallpapers" -> ChatWallpapers.list(this) { result.success(it) }
                     "dismissKeyboard" -> {
                         val view = currentFocus ?: window.decorView
                         getSystemService(InputMethodManager::class.java)
@@ -130,8 +143,47 @@ class MainActivity : FlutterActivity() {
                 SdkExtensions.getExtensionVersion(Build.VERSION_CODES.R) >= 2)
 
     @Deprecated("Deprecated in Java")
+    /** System Photo Picker for a chat background (no storage permission). */
+    private fun pickWallpaper(call: MethodCall, result: MethodChannel.Result) {
+        val key = call.argument<String>("key")
+        if (!ChatWallpapers.isKey(key)) {
+            result.success(false)
+            return
+        }
+        pendingWallpaper?.success(false)
+        pendingWallpaper = result
+        pendingWallpaperKey = key
+
+        val intent = if (isPhotoPickerAvailable()) {
+            Intent(ACTION_PICK_IMAGES).apply { type = "image/*" }
+        } else {
+            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "image/*"
+            }
+        }
+        try {
+            startActivityForResult(intent, REQUEST_WALLPAPER)
+        } catch (e: ActivityNotFoundException) {
+            pendingWallpaper = null
+            result.success(false)
+        }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_WALLPAPER) {
+            val result = pendingWallpaper ?: return
+            val key = pendingWallpaperKey
+            pendingWallpaper = null
+            val uri = data?.data
+            if (resultCode == RESULT_OK && uri != null && key != null) {
+                ChatWallpapers.save(this, uri, key) { result.success(it) }
+            } else {
+                result.success(false)
+            }
+            return
+        }
         if (requestCode != REQUEST_PICK) return
         val result = pendingPick ?: return
         pendingPick = null
@@ -218,6 +270,7 @@ class MainActivity : FlutterActivity() {
         const val REQUEST_PICK = 4201
         const val REQUEST_PERMISSIONS = 4202
         const val REQUEST_NOTIFICATIONS = 4203
+        const val REQUEST_WALLPAPER = 4204
         const val MAX_PICKED_ITEMS = 10
 
         // MediaStore.ACTION_PICK_IMAGES / EXTRA_PICK_IMAGES_MAX, written out

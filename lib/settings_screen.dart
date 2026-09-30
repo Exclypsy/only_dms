@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'chat_wallpaper.dart';
+import 'chat_wallpaper_store.dart';
+import 'chat_wallpaper_tile.dart';
 import 'settings.dart';
 import 'username_dialog.dart';
 
@@ -12,6 +15,7 @@ class SettingsScreen extends StatefulWidget {
     required this.onLogout,
     this.onRequestNotifications,
     this.onTestNotification,
+    this.wallpapers,
   });
 
   final AppSettings initial;
@@ -25,12 +29,18 @@ class SettingsScreen extends StatefulWidget {
   final Future<bool> Function()? onRequestNotifications;
   final Future<void> Function()? onTestNotification;
 
+  /// Custom chat backgrounds; without it the section is hidden.
+  final ChatWallpaperStore? wallpapers;
+
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late AppSettings _settings = widget.initial;
+
+  /// While the slider is dragged; saved when the finger lifts.
+  late double _dim = widget.initial.wallpaperDim;
 
   void _update(AppSettings settings) {
     setState(() => _settings = settings);
@@ -99,6 +109,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: _settings.allowStories,
             onChanged: (v) => _update(_settings.copyWith(allowStories: v)),
           ),
+          if (widget.wallpapers case final wallpapers?) ...[
+            const _SectionHeader('Vzhľad'),
+            ChatWallpaperTile(
+              store: wallpapers,
+              wallpaperKey: defaultWallpaperKey,
+              title: 'Pozadie chatov',
+              emptySubtitle: 'Vyber fotku, ktorá bude za správami vo všetkých chatoch.',
+            ),
+            ListenableBuilder(
+              listenable: wallpapers,
+              builder: (context, _) => wallpapers.keys.isEmpty
+                  ? const SizedBox.shrink()
+                  : ListTile(
+                      title: const Text('Stmavenie pozadia'),
+                      subtitle: Slider(
+                        value: _dim,
+                        max: maxWallpaperDim,
+                        divisions: 8,
+                        label: '${(_dim * 100).round()} %',
+                        semanticFormatterCallback: (v) => '${(v * 100).round()} %',
+                        onChanged: (v) => setState(() => _dim = v),
+                        onChangeEnd: (v) => _update(_settings.copyWith(wallpaperDim: v)),
+                      ),
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              child: Text(
+                'Iné pozadie len pre jeden chat: otvor ho a podrž prst na hlavičke s menom.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
           const _SectionHeader('Súkromie'),
           SwitchListTile(
             title: const Text('Okamžité otváranie chatov'),

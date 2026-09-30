@@ -177,6 +177,48 @@ html[data-nofeed-page="inbox"] :is(a, [role="button"], [role="link"]):has(svg:is
 html[data-nofeed-page="inbox"] svg:is([aria-label="Back"], [aria-label="Späť"], [aria-label="Zpět"]) {
   visibility: hidden !important;
 }
+
+/* Custom chat background (chat_wallpaper.dart). The photo itself arrives in a
+   separate <style>; here is only how it is laid out behind the messages.
+   Instagram rounds the message bubbles with a wide outline in the page colour,
+   which would show as dark squares on a photo. */
+html[data-nofeed-wallpaper] [data-pagelet="IGDMessagesList"] {
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+html[data-nofeed-wallpaper] [data-pagelet="IGDMessagesList"] * {
+  outline-color: transparent !important;
+}
+/* Times, names and "Seen" are written straight on the photo in Instagram's
+   secondary text colour. There it becomes black or white, whichever is
+   readable on this photo (--nofeed-wallpaper-text, chat_wallpaper.dart);
+   inside the message bubbles (role=presentation) it stays as it was. */
+html[data-nofeed-wallpaper] {
+  --nofeed-ig-secondary-text: var(--ig-secondary-text);
+  --nofeed-ig-tertiary-text: var(--ig-tertiary-text);
+}
+html[data-nofeed-wallpaper] [data-pagelet="IGDMessagesList"] {
+  --ig-secondary-text: var(--nofeed-wallpaper-text, var(--nofeed-ig-secondary-text)) !important;
+  --ig-tertiary-text: var(--nofeed-wallpaper-text, var(--nofeed-ig-tertiary-text)) !important;
+}
+html[data-nofeed-wallpaper] [data-pagelet="IGDMessagesList"] [role="presentation"] {
+  --ig-secondary-text: var(--nofeed-ig-secondary-text) !important;
+  --ig-tertiary-text: var(--nofeed-ig-tertiary-text) !important;
+}
+
+/* In a chat, holding the header opens NoFeed's menu for that chat. Without
+   this WebKit would start selecting the header's text. Messages stay
+   selectable; text fields handle selection themselves. */
+html[data-nofeed-chat="1"] body {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+html[data-nofeed-chat="1"] [data-pagelet="IGDMessagesList"] {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
 ''';
 
 /// JavaScript that marks the current page on `<html>` (for the rules above),
@@ -188,6 +230,7 @@ String cosmeticScript({
   required bool navBar,
   required String background,
   bool edgeToEdge = false,
+  bool isChat = false,
 }) =>
     '''
 (function () {
@@ -195,6 +238,7 @@ String cosmeticScript({
   html.setAttribute('data-nofeed-page', ${jsonEncode(isInbox ? 'inbox' : 'other')});
   html.setAttribute('data-nofeed-nav', ${jsonEncode(navBar ? '1' : '0')});
   html.setAttribute('data-nofeed-edge', ${jsonEncode(edgeToEdge ? '1' : '0')});
+  html.setAttribute('data-nofeed-chat', ${jsonEncode(isChat ? '1' : '0')});
   html.style.setProperty('--nofeed-bg', ${jsonEncode(background)});
   if (!document.getElementById('nofeed-blur')) {
     var blur = document.createElement('div');

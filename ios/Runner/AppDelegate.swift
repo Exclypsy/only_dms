@@ -1,4 +1,5 @@
 import Flutter
+import PhotosUI
 import UIKit
 import UserNotifications
 import WebKit
@@ -33,7 +34,7 @@ import webview_flutter_wkwebview
 }
 
 /// iOS side of lib/native_bridge.dart: local notifications, WebView keyboard
-/// behaviour and chat pictures. (The other channel methods are Android-only
+/// behaviour, chat pictures and chat backgrounds. (The other channel methods are Android-only
 /// and not implemented here.)
 enum NativeChannel {
   static func register(with registrar: FlutterPluginRegistrar) {
@@ -71,6 +72,19 @@ enum NativeChannel {
       case "clearChatSnapshots":
         ChatSnapshots.clear()
         result(nil)
+      case "pickWallpaper":
+        let key = (call.arguments as? [String: Any])?["key"] as? String ?? ""
+        ChatWallpapers.pick(key: key) { saved in result(saved) }
+      case "loadWallpaper":
+        let key = (call.arguments as? [String: Any])?["key"] as? String ?? ""
+        ChatWallpapers.load(key: key) { data in
+          result(data.map { FlutterStandardTypedData(bytes: $0) })
+        }
+      case "removeWallpaper":
+        let key = (call.arguments as? [String: Any])?["key"] as? String ?? ""
+        ChatWallpapers.remove(key: key) { result(nil) }
+      case "listWallpapers":
+        ChatWallpapers.list { keys in result(keys) }
       case "dismissKeyboard":
         let args = call.arguments as? [String: Any]
         if let id = (args?["id"] as? NSNumber)?.int64Value,
@@ -234,6 +248,156 @@ enum ChatSnapshots {
     }
     for file in byDate.dropFirst(maxCount) {
       try? FileManager.default.removeItem(at: file)
+    }
+  }
+}
+
+/// Custom chat backgrounds (see lib/chat_wallpaper.dart): photos the user picks
+/// in the system photo picker (no photo-library permission needed), scaled
+/// down and stored as JPEG in the app's Application Support folder, excluded
+/// from backups. File name = "default" or the chat id.
+enum ChatWallpapers {
+  /// Longest side of the stored photo in pixels (a phone screen is enough).
+  private static let maxPixels: CGFloat = 1600
+  private static let queue = DispatchQueue(label: "nofeed.chat-wallpapers", qos: .userInitiated)
+  private static var picker: WallpaperPicker?
+
+  private static var directory: URL? {
+    FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+      .appendingPathComponent("chat_wallpapers", isDirectory: true)
+  }
+
+  /// Keys come from lib/chat_wallpaper.dart; checked again so that a key can
+  /// never leave the folder.
+  private static func file(for key: String) -> URL? {
+    let allowed = CharacterSet(
+      charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
+    guard !key.isEmpty, key.count <= 64,
+      key.unicodeScalars.allSatisfy({ allowed.contains($0) })
+    else { return nil }
+    return directory?.appendingPathComponent("\(key).jpg")
+  }
+
+  /// Opens the system photo picker and saves the chosen photo as background
+  /// [key]. Completes with false if nothing was picked or saving failed.
+  static func pick(key: String, completion: @escaping (Bool) -> Void) {
+    guard let file = file(for: key), let presenter = topViewController() else {
+      completion(false)
+      return
+    }
+    var configuration = PHPickerConfiguration()
+    configuration.filter = .images
+    configuration.selectionLimit = 1
+    let controller = PHPickerViewController(configuration: configuration)
+    let delegate = WallpaperPicker { image in
+      picker = nil
+      guard let image else {
+        completion(false)
+        return
+      }
+      queue.async {
+        let saved = save(image, to: file)
+        DispatchQueue.main.async { completion(saved) }
+      }
+    }
+    picker = delegate  // keeps the delegate alive while the picker is open
+    controller.delegate = delegate
+    presenter.present(controller, animated: true)
+  }
+
+  private static func save(_ image: UIImage, to file: URL) -> Bool {
+    let longest = max(image.size.width * image.scale, image.size.height * image.scale)
+    let ratio = min(1, maxPixels / max(longest, 1))
+    let size = CGSize(
+      width: (image.size.width * image.scale * ratio).rounded(),
+      height: (image.size.height * image.scale * ratio).rounded())
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = true
+    // Drawing also applies the photo's orientation.
+    let scaled = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+      image.draw(in: CGRect(origin: .zero, size: size))
+    }
+    guard let data = scaled.jpegData(compressionQuality: 0.8), var folder = directory else {
+      return false
+    }
+    do {
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = true
+      try? folder.setResourceValues(values)
+      try data.write(to: file, options: [.atomic, .completeFileProtectionUnlessOpen])
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  static func load(key: String, completion: @escaping (Data?) -> Void) {
+    guard let file = file(for: key) else {
+      completion(nil)
+      return
+    }
+    queue.async {
+      let data = try? Data(contentsOf: file)
+      DispatchQueue.main.async { completion(data) }
+    }
+  }
+
+  static func remove(key: String, completion: @escaping () -> Void) {
+    guard let file = file(for: key) else {
+      completion()
+      return
+    }
+    queue.async {
+      try? FileManager.default.removeItem(at: file)
+      DispatchQueue.main.async { completion() }
+    }
+  }
+
+  /// Keys of all saved backgrounds.
+  static func list(completion: @escaping ([String]) -> Void) {
+    queue.async {
+      var keys: [String] = []
+      if let directory,
+        let files = try? FileManager.default.contentsOfDirectory(
+          at: directory, includingPropertiesForKeys: nil)
+      {
+        keys = files.filter { $0.pathExtension == "jpg" }
+          .map { $0.deletingPathExtension().lastPathComponent }
+      }
+      DispatchQueue.main.async { completion(keys) }
+    }
+  }
+
+  private static func topViewController() -> UIViewController? {
+    let window = UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }
+    var top = window?.rootViewController
+    while let presented = top?.presentedViewController { top = presented }
+    return top
+  }
+}
+
+/// Delegate of the system photo picker: hands over the picked image, or nil.
+final class WallpaperPicker: NSObject, PHPickerViewControllerDelegate {
+  private let done: (UIImage?) -> Void
+
+  init(done: @escaping (UIImage?) -> Void) {
+    self.done = done
+  }
+
+  func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+    picker.dismiss(animated: true)
+    guard let provider = results.first?.itemProvider, provider.canLoadObject(ofClass: UIImage.self)
+    else {
+      done(nil)
+      return
+    }
+    provider.loadObject(ofClass: UIImage.self) { [done] object, _ in
+      DispatchQueue.main.async { done(object as? UIImage) }
     }
   }
 }

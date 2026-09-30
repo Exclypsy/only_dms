@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'chat_wallpaper.dart';
+import 'chat_wallpaper_store.dart';
+import 'chat_wallpaper_tile.dart';
 import 'instagram_tab.dart';
 import 'nav_bar.dart';
 import 'nav_tabs.dart';
@@ -48,6 +51,9 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   String? _shownUrl;
   Object? _shownError;
 
+  /// Custom chat backgrounds (see chat_wallpaper.dart), shared by all tabs.
+  final ChatWallpaperStore _wallpapers = ChatWallpaperStore();
+
   /// New-message notifications (see unread_notifier.dart).
   final UnreadChatTracker _unread = UnreadChatTracker();
   Timer? _unreadTimer;
@@ -64,7 +70,10 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    _messages = _createTab(UrlPolicy.inboxUri)..load();
+    _wallpapers.load();
+    // Store the tab before loading: loading already notifies the listeners.
+    _messages = _createTab(UrlPolicy.inboxUri);
+    _messages.load();
     WidgetsBinding.instance.addObserver(this);
     _applyNotifications();
   }
@@ -128,6 +137,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     for (final tab in _tabs) {
       tab.dispose();
     }
+    _wallpapers.dispose();
     super.dispose();
   }
 
@@ -142,6 +152,9 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
       chatSnapshots: () => _settings.instantChats,
       // Logged in before: the start page will appear, not the login page.
       loadPlaceholders: () => _settings.username != null,
+      wallpapers: _wallpapers,
+      wallpaperDim: () => _settings.wallpaperDim,
+      onChatHeaderHold: _showChatBackgroundSheet,
       canCaptureChat: () =>
           mounted && _lifecycle == AppLifecycleState.resumed && identical(_active, tab),
     )..addListener(_onTabChanged);
@@ -236,7 +249,9 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     final home = NavTabs.profileUri(username);
     final profile = _profile;
     if (profile == null) {
-      setState(() => _profile = _createTab(home)..load());
+      final tab = _createTab(home);
+      setState(() => _profile = tab);
+      tab.load();
     } else if (profile.homeUri != home) {
       profile
         ..homeUri = home
@@ -264,6 +279,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     final secureChanged = settings.hideInRecents != _settings.hideInRecents;
     final notificationsChanged = settings.notificationsEnabled != _settings.notificationsEnabled;
     final snapshotsTurnedOff = _settings.instantChats && !settings.instantChats;
+    final dimChanged = settings.wallpaperDim != _settings.wallpaperDim;
     setState(() {
       _settings = settings;
       _policy = settings.urlPolicy;
@@ -271,6 +287,13 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     if (secureChanged) await NativeBridge.setSecure(settings.hideInRecents);
     if (notificationsChanged) _applyNotifications();
     if (snapshotsTurnedOff) await NativeBridge.clearChatSnapshots();
+    if (dimChanged) {
+      // Saved pictures of chats show the old dimming.
+      await NativeBridge.clearChatSnapshots();
+      for (final tab in _tabs) {
+        tab.refreshWallpaper();
+      }
+    }
     await widget.store.save(settings);
   }
 
@@ -281,6 +304,8 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     await _messages.controller.clearCache();
     await _messages.controller.clearLocalStorage();
     await NativeBridge.clearChatSnapshots();
+    // Chat ids belong to the account; the background for all chats stays.
+    await _wallpapers.removeChatBackgrounds();
     final dropped = [?_profile, ?_home];
     setState(() {
       _profile = null;
@@ -303,7 +328,9 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
       case NavTab.home:
         final home = _home;
         if (home == null) {
-          setState(() => _home = _createTab(UrlPolicy.followingFeedUri)..load());
+          final tab = _createTab(UrlPolicy.followingFeedUri);
+          setState(() => _home = tab);
+          tab.load();
         } else if (_activeTab == NavTab.home) {
           _backToStart(home, atStart: UrlPolicy.isFollowingFeed(home.currentUrl));
         }
@@ -336,6 +363,45 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Holding the header of an open chat: background for this chat only (or
+  /// for all chats), like "Theme" in the Instagram app.
+  void _showChatBackgroundSheet(InstagramTab tab) {
+    final key = chatWallpaperKey(tab.currentUrl);
+    if (key == null || !mounted) return;
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text('Pozadie chatu', style: Theme.of(sheetContext).textTheme.titleMedium),
+            ),
+            ChatWallpaperTile(
+              store: _wallpapers,
+              wallpaperKey: key,
+              title: 'Len tento chat',
+              emptySubtitle: 'Vyber fotku, ktorá bude len v tomto chate.',
+              onPicked: () => Navigator.of(sheetContext).maybePop(),
+            ),
+            ChatWallpaperTile(
+              store: _wallpapers,
+              wallpaperKey: defaultWallpaperKey,
+              title: 'Všetky chaty',
+              emptySubtitle: 'Vyber fotku pre chaty, ktoré nemajú vlastné pozadie.',
+              onPicked: () => Navigator.of(sheetContext).maybePop(),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Tapping the active tab again, like in the Instagram app: back to the
   /// tab's start page, or to its top if it is already there.
   void _backToStart(InstagramTab tab, {required bool atStart}) {
@@ -356,6 +422,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
           onChanged: _updateSettings,
           onLogout: _logoutAndClearData,
           onRequestNotifications: NativeBridge.requestNotifications,
+          wallpapers: _wallpapers,
           onTestNotification: () => NativeBridge.showNotification(
             title: 'Meno odosielateľa',
             body: 'Takto bude vyzerať oznámenie o novej správe.',
