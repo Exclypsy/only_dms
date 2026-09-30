@@ -47,8 +47,7 @@ class AppSettings {
 }
 
 class SettingsStore {
-  SettingsStore({SharedPreferencesAsync? prefs})
-    : _prefs = prefs ?? SharedPreferencesAsync();
+  SettingsStore({SharedPreferencesAsync? prefs}) : _prefs = prefs ?? SharedPreferencesAsync();
 
   final SharedPreferencesAsync _prefs;
 
@@ -61,15 +60,11 @@ class SettingsStore {
   Future<AppSettings> load() async {
     const defaults = AppSettings();
     return AppSettings(
-      allowSharedReels:
-          await _prefs.getBool(_allowSharedReels) ?? defaults.allowSharedReels,
-      allowStories:
-          await _prefs.getBool(_allowStories) ?? defaults.allowStories,
-      hideInRecents:
-          await _prefs.getBool(_hideInRecents) ?? defaults.hideInRecents,
+      allowSharedReels: await _prefs.getBool(_allowSharedReels) ?? defaults.allowSharedReels,
+      allowStories: await _prefs.getBool(_allowStories) ?? defaults.allowStories,
+      hideInRecents: await _prefs.getBool(_hideInRecents) ?? defaults.hideInRecents,
       notificationsEnabled:
-          await _prefs.getBool(_notificationsEnabled) ??
-          defaults.notificationsEnabled,
+          await _prefs.getBool(_notificationsEnabled) ?? defaults.notificationsEnabled,
       username: await _prefs.getString(_username),
     );
   }
@@ -77,11 +72,9 @@ class SettingsStore {
   static const _settingsHintShown = 'settings_hint_shown';
 
   /// Whether the one-time "long-press Profile for settings" tip was shown.
-  Future<bool> settingsHintShown() async =>
-      await _prefs.getBool(_settingsHintShown) ?? false;
+  Future<bool> settingsHintShown() async => await _prefs.getBool(_settingsHintShown) ?? false;
 
-  Future<void> markSettingsHintShown() =>
-      _prefs.setBool(_settingsHintShown, true);
+  Future<void> markSettingsHintShown() => _prefs.setBool(_settingsHintShown, true);
 
   Future<void> save(AppSettings settings) async {
     await _prefs.setBool(_allowSharedReels, settings.allowSharedReels);

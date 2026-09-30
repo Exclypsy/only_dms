@@ -20,11 +20,7 @@ import 'viewer_account.dart';
 /// App shell: two Instagram tabs (Messages, Profile) that stay alive, the
 /// floating navigation pill and the settings.
 class DmScreen extends StatefulWidget {
-  const DmScreen({
-    super.key,
-    required this.initialSettings,
-    required this.store,
-  });
+  const DmScreen({super.key, required this.initialSettings, required this.store});
 
   final AppSettings initialSettings;
   final SettingsStore store;
@@ -52,8 +48,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   Timer? _unreadTimer;
   AppLifecycleState _lifecycle = AppLifecycleState.resumed;
 
-  InstagramTab get _active =>
-      _activeTab == NavTab.profile ? (_profile ?? _messages) : _messages;
+  InstagramTab get _active => _activeTab == NavTab.profile ? (_profile ?? _messages) : _messages;
 
   @override
   void initState() {
@@ -64,8 +59,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) =>
-      _lifecycle = state;
+  void didChangeAppLifecycleState(AppLifecycleState state) => _lifecycle = state;
 
   /// Starts or stops watching Instagram's unread counter (and, on Android, the
   /// background service) according to the settings.
@@ -75,10 +69,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     final enabled = _settings.notificationsEnabled;
     NativeBridge.setKeepAlive(enabled);
     if (enabled) {
-      _unreadTimer = Timer.periodic(
-        const Duration(seconds: 4),
-        (_) => _checkUnread(),
-      );
+      _unreadTimer = Timer.periodic(const Duration(seconds: 4), (_) => _checkUnread());
     }
   }
 
@@ -99,10 +90,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
         _activeTab == NavTab.messages &&
         UrlPolicy.isInbox(_messages.currentUrl);
     if (!lookingAtInbox) {
-      await NativeBridge.showNotification(
-        title: 'NoFeed',
-        body: unreadNotificationText(count),
-      );
+      await NativeBridge.showNotification(title: 'NoFeed', body: unreadNotificationText(count));
     }
   }
 
@@ -132,8 +120,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     final tab = InstagramTab(
       homeUri: home,
       policy: () => _policy,
-      pageBackground: () =>
-          _cssColor(Theme.of(context).scaffoldBackgroundColor),
+      pageBackground: () => _cssColor(Theme.of(context).scaffoldBackgroundColor),
       showMessage: _showMessage,
       onPageChanged: _onPageChanged,
     )..addListener(_onTabChanged);
@@ -151,15 +138,13 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _onPageChanged(InstagramTab tab, String url) {
     if (tab == _messages && UrlPolicy.isInbox(url)) {
       _detectAccount();
-    } else if (NavTabs.activeTab(url, username: _settings.username) ==
-        NavTab.profile) {
+    } else if (NavTabs.activeTab(url, username: _settings.username) == NavTab.profile) {
       // The own profile page has the most reliable picture source.
       _detectAvatar(tab, inbox: false);
     }
@@ -181,9 +166,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     for (var i = 0; i < attempts; i++) {
       if (i > 0) await Future<void>.delayed(const Duration(milliseconds: 1500));
       if (!mounted || !UrlPolicy.isInbox(_messages.currentUrl)) return null;
-      final username = parseViewerUsername(
-        await _messages.read(readViewerUsernameScript),
-      );
+      final username = parseViewerUsername(await _messages.read(readViewerUsernameScript));
       if (username != null) {
         if (username != _settings.username) {
           await _updateSettings(_settings.copyWith(username: username));
@@ -196,23 +179,16 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
 
   /// Reads the profile-picture URL (see viewer_account.dart) while the inbox or
   /// the own profile is shown in [tab]. Keeps the old picture if nothing is found.
-  Future<void> _detectAvatar(
-    InstagramTab tab, {
-    required bool inbox,
-    int attempts = 4,
-  }) async {
+  Future<void> _detectAvatar(InstagramTab tab, {required bool inbox, int attempts = 4}) async {
     final username = _settings.username;
     if (username == null) return;
     for (var i = 0; i < attempts; i++) {
       if (i > 0) await Future<void>.delayed(const Duration(milliseconds: 1500));
       final stillThere = inbox
           ? UrlPolicy.isInbox(tab.currentUrl)
-          : NavTabs.activeTab(tab.currentUrl, username: username) ==
-                NavTab.profile;
+          : NavTabs.activeTab(tab.currentUrl, username: username) == NavTab.profile;
       if (!mounted || !stillThere) return;
-      final url = parseAvatarUrl(
-        await tab.read(readViewerAvatarScript(username, inbox: inbox)),
-      );
+      final url = parseAvatarUrl(await tab.read(readViewerAvatarScript(username, inbox: inbox)));
       if (url != null) {
         if (mounted && url != _avatarUrl) setState(() => _avatarUrl = url);
         return;
@@ -241,9 +217,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text(
-          'Tip: podrž ikonu profilu dole a otvoria sa Nastavenia NoFeed.',
-        ),
+        content: const Text('Tip: podrž ikonu profilu dole a otvoria sa Nastavenia NoFeed.'),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 100),
         duration: const Duration(seconds: 6),
@@ -254,8 +228,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
 
   Future<void> _updateSettings(AppSettings settings) async {
     final secureChanged = settings.hideInRecents != _settings.hideInRecents;
-    final notificationsChanged =
-        settings.notificationsEnabled != _settings.notificationsEnabled;
+    final notificationsChanged = settings.notificationsEnabled != _settings.notificationsEnabled;
     setState(() {
       _settings = settings;
       _policy = settings.urlPolicy;
@@ -281,9 +254,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     profile
       ?..removeListener(_onTabChanged)
       ..dispose();
-    await _updateSettings(
-      _settings.copyWith(clearUsername: true, notificationsEnabled: false),
-    );
+    await _updateSettings(_settings.copyWith(clearUsername: true, notificationsEnabled: false));
     _messages.load(UrlPolicy.loginUri);
   }
 
@@ -291,8 +262,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     switch (tab) {
       case NavTab.messages:
         // Tapping the active tab again goes back to its start, like in the app.
-        if (_activeTab == NavTab.messages &&
-            !UrlPolicy.isInbox(_messages.currentUrl)) {
+        if (_activeTab == NavTab.messages && !UrlPolicy.isInbox(_messages.currentUrl)) {
           _messages.load();
         }
         setState(() => _activeTab = NavTab.messages);
@@ -310,8 +280,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
         _ensureProfileTab(username);
         final profile = _profile!;
         if (wasActive &&
-            NavTabs.activeTab(profile.currentUrl, username: username) !=
-                NavTab.profile) {
+            NavTabs.activeTab(profile.currentUrl, username: username) != NavTab.profile) {
           profile.load();
         }
         setState(() => _activeTab = NavTab.profile);
@@ -389,15 +358,9 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
                 index: identical(active, profile) ? 1 : 0,
                 sizing: StackFit.expand,
                 children: [
-                  InstagramTabView(
-                    tab: _messages,
-                    onOpenSettings: _openSettings,
-                  ),
+                  InstagramTabView(tab: _messages, onOpenSettings: _openSettings),
                   if (profile != null)
-                    InstagramTabView(
-                      tab: profile,
-                      onOpenSettings: _openSettings,
-                    ),
+                    InstagramTabView(tab: profile, onOpenSettings: _openSettings),
                 ],
               ),
               // Floating Instagram-style pill: Messages and Profile only.

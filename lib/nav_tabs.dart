@@ -7,11 +7,7 @@ enum NavTab { messages, profile }
 class NavTabs {
   const NavTabs._();
 
-  static const Set<String> _hosts = {
-    'instagram.com',
-    'www.instagram.com',
-    'm.instagram.com',
-  };
+  static const Set<String> _hosts = {'instagram.com', 'www.instagram.com', 'm.instagram.com'};
   static final RegExp _username = RegExp(r'^[a-z0-9._]{1,30}$');
 
   /// Cleans up what the user typed (`@Name ` → `name`); null if invalid.
@@ -21,8 +17,7 @@ class NavTabs {
     return _username.hasMatch(name) ? name : null;
   }
 
-  static Uri profileUri(String username) =>
-      Uri.https('www.instagram.com', '/$username/');
+  static Uri profileUri(String username) => Uri.https('www.instagram.com', '/$username/');
 
   /// Which tab is active for [url] (null = none, e.g. a post or a story).
   static NavTab? activeTab(String? url, {String? username}) {

@@ -8,15 +8,11 @@ import 'media_pick_request.dart';
 class NativeBridge {
   const NativeBridge._();
 
-  static const MethodChannel _channel = MethodChannel(
-    'com.martinbartko.nofeed/native',
-  );
+  static const MethodChannel _channel = MethodChannel('com.martinbartko.nofeed/native');
 
-  static bool get _isAndroid =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  static bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
-  static bool get _isIOS =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+  static bool get _isIOS => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   /// Asks for permission to show notifications (system dialog). True if allowed.
   static Future<bool> requestNotifications() async {
@@ -29,16 +25,10 @@ class NativeBridge {
   }
 
   /// Shows a local notification (replaces the previous NoFeed notification).
-  static Future<void> showNotification({
-    required String title,
-    required String body,
-  }) async {
+  static Future<void> showNotification({required String title, required String body}) async {
     if (!_isAndroid && !_isIOS) return;
     try {
-      await _channel.invokeMethod<void>('showNotification', {
-        'title': title,
-        'body': body,
-      });
+      await _channel.invokeMethod<void>('showNotification', {'title': title, 'body': body});
     } on PlatformException {
       // Notifications are best effort.
     }
@@ -50,9 +40,7 @@ class NativeBridge {
   static Future<void> setKeepAlive(bool keepAlive) async {
     if (!_isAndroid) return;
     try {
-      await _channel.invokeMethod<void>('setKeepAlive', {
-        'keepAlive': keepAlive,
-      });
+      await _channel.invokeMethod<void>('setKeepAlive', {'keepAlive': keepAlive});
     } on PlatformException {
       // Best effort.
     }
@@ -81,10 +69,7 @@ class NativeBridge {
   static Future<List<String>> pickMedia(MediaPickRequest request) async {
     if (!_isAndroid) return const [];
     try {
-      final uris = await _channel.invokeListMethod<String>(
-        'pickMedia',
-        request.toMap(),
-      );
+      final uris = await _channel.invokeListMethod<String>('pickMedia', request.toMap());
       return uris ?? const [];
     } on PlatformException {
       return const [];

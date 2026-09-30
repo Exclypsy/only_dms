@@ -4,12 +4,7 @@ enum LoadErrorKind { offline, generic, redirectLoop }
 
 /// Full-screen error shown instead of a blank page.
 class ErrorView extends StatelessWidget {
-  const ErrorView({
-    super.key,
-    required this.kind,
-    required this.onRetry,
-    this.onOpenSettings,
-  });
+  const ErrorView({super.key, required this.kind, required this.onRetry, this.onOpenSettings});
 
   final LoadErrorKind kind;
   final VoidCallback onRetry;
@@ -48,17 +43,9 @@ class ErrorView extends StatelessWidget {
             children: [
               Icon(icon, size: 56, color: theme.colorScheme.onSurfaceVariant),
               const SizedBox(height: 16),
-              Text(
-                title,
-                style: theme.textTheme.titleLarge,
-                textAlign: TextAlign.center,
-              ),
+              Text(title, style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
               const SizedBox(height: 8),
-              Text(
-                message,
-                style: theme.textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
+              Text(message, style: theme.textTheme.bodyMedium, textAlign: TextAlign.center),
               const SizedBox(height: 24),
               FilledButton.icon(
                 onPressed: onRetry,
@@ -67,10 +54,7 @@ class ErrorView extends StatelessWidget {
               ),
               if (onOpenSettings != null) ...[
                 const SizedBox(height: 8),
-                TextButton(
-                  onPressed: onOpenSettings,
-                  child: const Text('Nastavenia NoFeed'),
-                ),
+                TextButton(onPressed: onOpenSettings, child: const Text('Nastavenia NoFeed')),
               ],
             ],
           ),

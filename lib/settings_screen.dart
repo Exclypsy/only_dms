@@ -38,10 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _editUsername() async {
-    final username = await showUsernameDialog(
-      context,
-      initial: _settings.username,
-    );
+    final username = await showUsernameDialog(context, initial: _settings.username);
     if (username != null) _update(_settings.copyWith(username: username));
   }
 
@@ -51,9 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Oznámenia nie sú povolené. Povoliť ich môžeš v nastaveniach telefónu.',
-          ),
+          content: Text('Oznámenia nie sú povolené. Povoliť ich môžeš v nastaveniach telefónu.'),
         ),
       );
       return;
@@ -71,10 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'Potom sa budeš musieť znova prihlásiť.',
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Zrušiť'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Zrušiť')),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Odhlásiť'),
@@ -98,9 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const _SectionHeader('Obsah'),
           SwitchListTile(
             title: const Text('Povoliť zdieľané reely (/reel/)'),
-            subtitle: const Text(
-              'Otvorí reel, ktorý ti niekto pošle v správe.',
-            ),
+            subtitle: const Text('Otvorí reel, ktorý ti niekto pošle v správe.'),
             value: _settings.allowSharedReels,
             onChanged: (v) => _update(_settings.copyWith(allowSharedReels: v)),
           ),
@@ -113,9 +103,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const _SectionHeader('Súkromie'),
             SwitchListTile(
               title: const Text('Skryť obsah v prehľade aplikácií'),
-              subtitle: const Text(
-                'Zablokuje aj snímky a nahrávanie obrazovky.',
-              ),
+              subtitle: const Text('Zablokuje aj snímky a nahrávanie obrazovky.'),
               value: _settings.hideInRecents,
               onChanged: (v) => _update(_settings.copyWith(hideInRecents: v)),
             ),
@@ -134,8 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: _settings.notificationsEnabled,
               onChanged: _setNotifications,
             ),
-            if (_settings.notificationsEnabled &&
-                widget.onTestNotification != null)
+            if (_settings.notificationsEnabled && widget.onTestNotification != null)
               ListTile(
                 leading: const Icon(Icons.notifications_outlined),
                 title: const Text('Poslať skúšobné oznámenie'),
@@ -189,9 +176,7 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Text(
         title,
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: theme.colorScheme.primary,
-        ),
+        style: theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.primary),
       ),
     );
   }

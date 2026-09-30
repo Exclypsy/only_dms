@@ -9,6 +9,10 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+# The code base is formatted with 100 columns (plain `dart format` uses this).
+formatter:
+  page_width: 100
+
 analyzer:
   exclude:
     - build/**
