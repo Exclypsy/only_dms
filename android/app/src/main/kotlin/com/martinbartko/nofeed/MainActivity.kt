@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ext.SdkExtensions
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
@@ -19,6 +20,7 @@ import io.flutter.plugin.common.MethodChannel
  *  - requestPermissions: runtime camera/microphone permission dialog
  *  - requestNotifications / showNotification: local notifications (Notifications.kt)
  *  - setKeepAlive: KeepAliveService on/off
+ *  - dismissKeyboard: closes the soft keyboard (chat, see lib/chat_keyboard.dart)
  */
 class MainActivity : FlutterActivity() {
     private var pendingPick: MethodChannel.Result? = null
@@ -42,6 +44,12 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                     "setKeepAlive" -> setKeepAlive(call, result)
+                    "dismissKeyboard" -> {
+                        val view = currentFocus ?: window.decorView
+                        getSystemService(InputMethodManager::class.java)
+                            ?.hideSoftInputFromWindow(view.windowToken, 0)
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -52,6 +52,15 @@ enum NativeChannel {
           WebViewKeyboard.configure(webView)
         }
         result(nil)
+      case "dismissKeyboard":
+        let args = call.arguments as? [String: Any]
+        if let id = (args?["id"] as? NSNumber)?.int64Value,
+          let webView = FWFWebViewFlutterWKWebViewExternalAPI.webView(
+            forIdentifier: id, withPluginRegistrar: registrar)
+        {
+          webView.endEditing(true)
+        }
+        result(nil)
       case "requestNotifications":
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) {
           granted, _ in
