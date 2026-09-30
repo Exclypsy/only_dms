@@ -9,6 +9,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import 'app_colors.dart';
+import 'chat_keyboard.dart';
 import 'cosmetic_css.dart';
 import 'error_view.dart';
 import 'header_reveal.dart';
@@ -81,6 +82,7 @@ class InstagramTab extends ChangeNotifier {
         // full-screen layouts like a chat keep their header in place; scroll
         // areas inside them still bounce natively.
         ..setOverScrollMode(WebViewOverScrollMode.ifContentScrolls);
+      _webKitId = platform.webViewIdentifier;
       NativeBridge.configureWebView(platform.webViewIdentifier);
       // <input type="file"> is handled by WebKit itself (system photo picker,
       // camera needs NSCameraUsageDescription in Info.plist).
@@ -111,6 +113,12 @@ class InstagramTab extends ChangeNotifier {
   HeaderFrame? _sentHeaderFrame;
   bool _sentHeaderAnimated = false;
   Timer? _headerSettleTimer;
+
+  final ChatKeyboard _chatKeyboard = ChatKeyboard();
+  bool _keyboardVisible = false;
+
+  /// iOS: identifier of the native WKWebView (see NativeBridge).
+  int? _webKitId;
 
   bool _disposed = false;
 
@@ -166,6 +174,34 @@ class InstagramTab extends ChangeNotifier {
       return null;
     }
   }
+
+  /// The keyboard appeared or disappeared while this tab is shown.
+  void keyboardChanged({required bool visible}) {
+    if (visible == _keyboardVisible) return;
+    _keyboardVisible = visible;
+    // Instagram focuses the composer by itself when a chat opens; the
+    // Instagram app does not open the keyboard until you tap the composer.
+    if (visible && _chatKeyboard.keyboardShown()) _dismissKeyboard();
+  }
+
+  /// Touches on the page (see [ChatKeyboard]); only used in a chat.
+  void pointerDown(Offset position, double height) {
+    if (UrlPolicy.isChat(currentUrl)) _chatKeyboard.pointerDown(position, height);
+  }
+
+  void pointerMove(Offset position) {
+    if (_keyboardVisible && UrlPolicy.isChat(currentUrl) && _chatKeyboard.pointerMove(position)) {
+      _dismissKeyboard();
+    }
+  }
+
+  void pointerUp(Offset position) {
+    if (_keyboardVisible && UrlPolicy.isChat(currentUrl) && _chatKeyboard.pointerUp(position)) {
+      _dismissKeyboard();
+    }
+  }
+
+  void _dismissKeyboard() => NativeBridge.dismissKeyboard(webViewId: _webKitId);
 
   @override
   void dispose() {
@@ -224,6 +260,7 @@ class InstagramTab extends ChangeNotifier {
     }
     _applyCosmetics(url);
     if (!changed) return;
+    if (UrlPolicy.isChat(url)) _chatKeyboard.chatOpened();
     _headerSettleTimer?.cancel();
     _headerReveal.reset();
     _sentHeaderFrame = null;
@@ -403,7 +440,15 @@ class InstagramTabView extends StatelessWidget {
           bottom: !isIOS,
           child: Stack(
             children: [
-              WebViewWidget(controller: tab.controller),
+              LayoutBuilder(
+                builder: (context, constraints) => Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: (e) => tab.pointerDown(e.localPosition, constraints.maxHeight),
+                  onPointerMove: (e) => tab.pointerMove(e.localPosition),
+                  onPointerUp: (e) => tab.pointerUp(e.localPosition),
+                  child: WebViewWidget(controller: tab.controller),
+                ),
+              ),
               if (tab.progress < 100 && tab.error == null)
                 Positioned(
                   top: edgeToEdge ? MediaQuery.paddingOf(context).top : 0,

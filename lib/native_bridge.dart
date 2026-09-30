@@ -58,6 +58,16 @@ class NativeBridge {
     }
   }
 
+  /// Closes the keyboard of a WebView (iOS: [webViewId]; Android: the app's).
+  static Future<void> dismissKeyboard({int? webViewId}) async {
+    if (!_isAndroid && !_isIOS) return;
+    try {
+      await _channel.invokeMethod<void>('dismissKeyboard', {'id': webViewId});
+    } on PlatformException {
+      // Best effort.
+    }
+  }
+
   /// Turns FLAG_SECURE on or off for the app window.
   static Future<void> setSecure(bool secure) async {
     if (!_isAndroid) return;

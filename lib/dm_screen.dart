@@ -61,6 +61,13 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) => _lifecycle = state;
 
+  @override
+  void didChangeMetrics() {
+    if (!mounted) return;
+    final visible = View.of(context).viewInsets.bottom > 0;
+    _active.keyboardChanged(visible: visible);
+  }
+
   /// Starts or stops watching Instagram's unread counter (and, on Android, the
   /// background service) according to the settings.
   void _applyNotifications() {

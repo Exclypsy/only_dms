@@ -84,6 +84,14 @@ class UrlPolicy {
     return segments.length == 2 && segments[0] == 'direct' && segments[1] == 'inbox';
   }
 
+  /// Whether [url] is an open chat (`/direct/t/<id>/`).
+  static bool isChat(String? url) {
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (uri == null || !_mainHosts.contains(uri.host.toLowerCase())) return false;
+    final segments = _segments(uri.pathSegments);
+    return segments.length >= 3 && segments[0] == 'direct' && segments[1] == 't';
+  }
+
   /// Whether [url] belongs to Instagram (HTTPS, instagram.com or a subdomain,
   /// default port). Used before granting camera, microphone or file access.
   static bool isInstagramOrigin(String? url) {
