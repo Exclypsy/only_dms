@@ -17,8 +17,8 @@ import 'url_policy.dart';
 import 'username_dialog.dart';
 import 'viewer_account.dart';
 
-/// App shell: two Instagram tabs (Messages, Profile) that stay alive, the
-/// floating navigation pill and the settings.
+/// App shell: three Instagram tabs (Home = Following feed, Messages, Profile)
+/// that stay alive, the floating navigation pill and the settings.
 class DmScreen extends StatefulWidget {
   const DmScreen({super.key, required this.initialSettings, required this.store});
 
@@ -37,6 +37,9 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
 
   /// Created (and preloaded in the background) once the username is known.
   InstagramTab? _profile;
+
+  /// Created on the first tap on Home, so no feed is loaded unless you ask.
+  InstagramTab? _home;
   NavTab _activeTab = NavTab.messages;
 
   /// Profile picture of the logged-in account (memory only, see viewer_account.dart).
@@ -48,7 +51,13 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   Timer? _unreadTimer;
   AppLifecycleState _lifecycle = AppLifecycleState.resumed;
 
-  InstagramTab get _active => _activeTab == NavTab.profile ? (_profile ?? _messages) : _messages;
+  InstagramTab get _active => switch (_activeTab) {
+    NavTab.home => _home ?? _messages,
+    NavTab.messages => _messages,
+    NavTab.profile => _profile ?? _messages,
+  };
+
+  List<InstagramTab> get _tabs => [_messages, ?_profile, ?_home];
 
   @override
   void initState() {
@@ -108,7 +117,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     final brightness = MediaQuery.platformBrightnessOf(context);
     if (brightness != _appliedBrightness) {
       _appliedBrightness = brightness;
-      for (final tab in [_messages, ?_profile]) {
+      for (final tab in _tabs) {
         tab.applyBrightness(brightness);
       }
     }
@@ -118,8 +127,9 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _unreadTimer?.cancel();
-    _messages.dispose();
-    _profile?.dispose();
+    for (final tab in _tabs) {
+      tab.dispose();
+    }
     super.dispose();
   }
 
@@ -251,22 +261,34 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     await WebViewCookieManager().clearCookies();
     await _messages.controller.clearCache();
     await _messages.controller.clearLocalStorage();
-    final profile = _profile;
+    final dropped = [?_profile, ?_home];
     setState(() {
       _profile = null;
+      _home = null;
       _activeTab = NavTab.messages;
       // Another account may log in next.
       _avatarUrl = null;
     });
-    profile
-      ?..removeListener(_onTabChanged)
-      ..dispose();
+    for (final tab in dropped) {
+      tab
+        ..removeListener(_onTabChanged)
+        ..dispose();
+    }
     await _updateSettings(_settings.copyWith(clearUsername: true, notificationsEnabled: false));
     _messages.load(UrlPolicy.loginUri);
   }
 
   Future<void> _onNavTap(NavTab tab) async {
     switch (tab) {
+      case NavTab.home:
+        final home = _home;
+        if (home == null) {
+          setState(() => _home = _createTab(UrlPolicy.followingFeedUri)..load());
+        } else if (_activeTab == NavTab.home && !UrlPolicy.isFollowingFeed(home.currentUrl)) {
+          // Tapping the active tab again goes back to its start.
+          home.load();
+        }
+        setState(() => _activeTab = NavTab.home);
       case NavTab.messages:
         // Tapping the active tab again goes back to its start, like in the app.
         if (_activeTab == NavTab.messages && !UrlPolicy.isInbox(_messages.currentUrl)) {
@@ -311,8 +333,8 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Back (Android): one step back inside the tab; from the Profile tab's start
-  /// back to Messages; in the inbox (or with nowhere to go back to) close the
+  /// Back (Android): one step back inside the tab; from the start of the Home
+  /// or Profile tab back to Messages; in the inbox (or with nowhere to go back to) close the
   /// app. Going back onto a blocked page just triggers a redirect.
   Future<void> _handleBack() async {
     final tab = _active;
@@ -339,7 +361,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final isIOS = defaultTargetPlatform == TargetPlatform.iOS;
     final active = _active;
-    final profile = _profile;
+    final tabs = _tabs;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -360,17 +382,16 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
           // status bar. Settings: long-press Profile in the navigation pill.
           body: Stack(
             children: [
-              // Both tabs stay alive; only the active one is shown.
+              // All tabs stay alive; only the active one is shown.
               IndexedStack(
-                index: identical(active, profile) ? 1 : 0,
+                index: tabs.indexOf(active),
                 sizing: StackFit.expand,
                 children: [
-                  InstagramTabView(tab: _messages, onOpenSettings: _openSettings),
-                  if (profile != null)
-                    InstagramTabView(tab: profile, onOpenSettings: _openSettings),
+                  for (final tab in tabs)
+                    InstagramTabView(key: ObjectKey(tab), tab: tab, onOpenSettings: _openSettings),
                 ],
               ),
-              // Floating Instagram-style pill: Messages and Profile only.
+              // Floating Instagram-style pill: Home, Messages and Profile only.
               // Hidden inside a chat, on login pages and while typing.
               if (NavTabs.showBar(active.currentUrl) &&
                   active.error == null &&
