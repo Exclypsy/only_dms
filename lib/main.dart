@@ -9,7 +9,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final store = SettingsStore();
   // Fall back to defaults if local storage can't be read.
-  final settings = await store.load().catchError((Object _) => const AppSettings());
+  final settings = await store.load().catchError(
+    (Object _) => const AppSettings(),
+  );
   // Apply before the first frame so the content is never visible in recents.
   await NativeBridge.setSecure(settings.hideInRecents);
   runApp(NoFeedApp(settings: settings, store: store));
@@ -28,7 +30,10 @@ class NoFeedApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: brandColor, surface: lightBackground),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: brandColor,
+          surface: lightBackground,
+        ),
         scaffoldBackgroundColor: lightBackground,
       ),
       darkTheme: ThemeData(

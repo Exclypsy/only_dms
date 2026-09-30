@@ -26,21 +26,34 @@ class UrlPolicy {
   /// Whether stories (`/stories/...`) may be opened.
   final bool allowStories;
 
-  static final Uri inboxUri = Uri.parse('https://www.instagram.com/direct/inbox/');
-  static final Uri loginUri = Uri.parse('https://www.instagram.com/accounts/login/');
+  static final Uri inboxUri = Uri.parse(
+    'https://www.instagram.com/direct/inbox/',
+  );
+  static final Uri loginUri = Uri.parse(
+    'https://www.instagram.com/accounts/login/',
+  );
 
   static const String _rootDomain = 'instagram.com';
 
   /// Hosts that serve the main web app. Path rules apply only to these; other
   /// subdomains (e.g. `accountscenter.`, the `l.` link redirector) are allowed
   /// as a whole.
-  static const Set<String> _mainHosts = {'instagram.com', 'www.instagram.com', 'm.instagram.com'};
+  static const Set<String> _mainHosts = {
+    'instagram.com',
+    'www.instagram.com',
+    'm.instagram.com',
+  };
 
   /// First path segments that are always blocked.
   static const Set<String> _blockedSections = {'reels', 'explore'};
 
   /// First path segments that are always allowed.
-  static const Set<String> _allowedSections = {'direct', 'accounts', 'challenge', 'p'};
+  static const Set<String> _allowedSections = {
+    'direct',
+    'accounts',
+    'challenge',
+    'p',
+  };
 
   /// Instagram usernames: letters, digits, dot and underscore, max 30 chars.
   static final RegExp _username = RegExp(r'^[a-z0-9._]{1,30}$');
@@ -73,15 +86,20 @@ class UrlPolicy {
   /// (e.g. login verification widgets); only non-web schemes are blocked.
   UrlAction decideSubframe(String url) {
     final scheme = Uri.tryParse(url.trim())?.scheme.toLowerCase();
-    return (scheme == 'https' || scheme == 'about') ? UrlAction.allow : UrlAction.block;
+    return (scheme == 'https' || scheme == 'about')
+        ? UrlAction.allow
+        : UrlAction.block;
   }
 
   /// Whether [url] is the DM inbox (where Back closes the app).
   static bool isInbox(String? url) {
     final uri = url == null ? null : Uri.tryParse(url);
-    if (uri == null || !_mainHosts.contains(uri.host.toLowerCase())) return false;
+    if (uri == null || !_mainHosts.contains(uri.host.toLowerCase()))
+      return false;
     final segments = _segments(uri.pathSegments);
-    return segments.length == 2 && segments[0] == 'direct' && segments[1] == 'inbox';
+    return segments.length == 2 &&
+        segments[0] == 'direct' &&
+        segments[1] == 'inbox';
   }
 
   /// Whether [url] belongs to Instagram (HTTPS, instagram.com or a subdomain,
@@ -89,7 +107,8 @@ class UrlPolicy {
   static bool isInstagramOrigin(String? url) {
     final uri = url == null ? null : Uri.tryParse(url.trim());
     if (uri == null || uri.scheme.toLowerCase() != 'https') return false;
-    if (uri.userInfo.isNotEmpty || (uri.hasPort && uri.port != 443)) return false;
+    if (uri.userInfo.isNotEmpty || (uri.hasPort && uri.port != 443))
+      return false;
     return _isInstagramHost(uri.host.toLowerCase());
   }
 
@@ -101,13 +120,17 @@ class UrlPolicy {
     if (_blockedSections.contains(section)) return UrlAction.redirectToInbox;
     if (_allowedSections.contains(section)) return UrlAction.allow;
     if (section == 'reel') {
-      return allowSharedReels && segments.length > 1 ? UrlAction.allow : UrlAction.redirectToInbox;
+      return allowSharedReels && segments.length > 1
+          ? UrlAction.allow
+          : UrlAction.redirectToInbox;
     }
     if (section == 'stories') {
       return allowStories ? UrlAction.allow : UrlAction.redirectToInbox;
     }
     // Everything else on the main host is treated as a profile page.
-    return _username.hasMatch(section) ? UrlAction.allow : UrlAction.redirectToInbox;
+    return _username.hasMatch(section)
+        ? UrlAction.allow
+        : UrlAction.redirectToInbox;
   }
 
   static bool _isInstagramHost(String host) =>

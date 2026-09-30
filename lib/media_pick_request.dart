@@ -17,9 +17,16 @@ enum PickerKind {
 }
 
 class MediaPickRequest {
-  const MediaPickRequest({required this.kind, required this.mimeTypes, required this.multiple});
+  const MediaPickRequest({
+    required this.kind,
+    required this.mimeTypes,
+    required this.multiple,
+  });
 
-  factory MediaPickRequest.fromAcceptTypes(List<String> acceptTypes, {required bool multiple}) {
+  factory MediaPickRequest.fromAcceptTypes(
+    List<String> acceptTypes, {
+    required bool multiple,
+  }) {
     final types = [
       for (final entry in acceptTypes)
         for (final part in entry.split(','))
@@ -28,7 +35,8 @@ class MediaPickRequest {
     final hasImage = types.any((t) => t.startsWith('image/'));
     final hasVideo = types.any((t) => t.startsWith('video/'));
     final onlyMedia =
-        types.isNotEmpty && types.every((t) => t.startsWith('image/') || t.startsWith('video/'));
+        types.isNotEmpty &&
+        types.every((t) => t.startsWith('image/') || t.startsWith('video/'));
 
     final PickerKind kind;
     if (!onlyMedia) {
@@ -54,7 +62,11 @@ class MediaPickRequest {
   final List<String> mimeTypes;
   final bool multiple;
 
-  Map<String, Object> toMap() => {'kind': kind.name, 'mimeTypes': mimeTypes, 'multiple': multiple};
+  Map<String, Object> toMap() => {
+    'kind': kind.name,
+    'mimeTypes': mimeTypes,
+    'multiple': multiple,
+  };
 
   static const Map<String, String> _extensions = {
     '.jpg': 'image/jpeg',

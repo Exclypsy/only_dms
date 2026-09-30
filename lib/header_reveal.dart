@@ -50,11 +50,16 @@ class HeaderFrame {
   int get hashCode => Object.hash(text, backdrop, floating);
 
   @override
-  String toString() => 'HeaderFrame(text: $text, backdrop: $backdrop, floating: $floating)';
+  String toString() =>
+      'HeaderFrame(text: $text, backdrop: $backdrop, floating: $floating)';
 }
 
 class HeaderReveal {
-  HeaderReveal({this.fadeZone = 72, this.revealDistance = 64, this.backdropFade = 40});
+  HeaderReveal({
+    this.fadeZone = 72,
+    this.revealDistance = 64,
+    this.backdropFade = 40,
+  });
 
   /// Near the top, the header fades out over this scroll offset.
   final double fadeZone;

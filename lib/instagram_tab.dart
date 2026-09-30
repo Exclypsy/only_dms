@@ -81,6 +81,7 @@ class InstagramTab extends ChangeNotifier {
         // full-screen layouts like a chat keep their header in place; scroll
         // areas inside them still bounce natively.
         ..setOverScrollMode(WebViewOverScrollMode.ifContentScrolls);
+      NativeBridge.configureWebView(platform.webViewIdentifier);
       // <input type="file"> is handled by WebKit itself (system photo picker,
       // camera needs NSCameraUsageDescription in Info.plist).
     }
@@ -124,7 +125,9 @@ class InstagramTab extends ChangeNotifier {
   bool get edgeToEdge => _edgeToEdge(currentUrl);
 
   bool _edgeToEdge(String? url) =>
-      defaultTargetPlatform == TargetPlatform.iOS && UrlPolicy.isInbox(url) && error == null;
+      defaultTargetPlatform == TargetPlatform.iOS &&
+      UrlPolicy.isInbox(url) &&
+      error == null;
 
   /// Loads [uri], or the tab's home page.
   void load([Uri? uri]) {
@@ -152,7 +155,9 @@ class InstagramTab extends ChangeNotifier {
         defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
     if (!supported) return;
-    controller.setBackgroundColor(brightness == Brightness.dark ? darkBackground : lightBackground);
+    controller.setBackgroundColor(
+      brightness == Brightness.dark ? darkBackground : lightBackground,
+    );
     final url = currentUrl;
     if (url != null) _applyCosmetics(url);
   }
@@ -228,6 +233,31 @@ class InstagramTab extends ChangeNotifier {
     _sentHeaderFrame = null;
     _sendHeaderFrame(_headerReveal.frame, animate: false);
     _onPageChanged?.call(this, url);
+    _probeTiming(url); // TEMP-PROBE
+  }
+
+  // TEMP-PROBE: structure only (counts / pagelet names), no text.
+  Future<void> _probeTiming(String url) async {
+    if (!kDebugMode || !url.contains('/direct/t/')) return;
+    final start = DateTime.now();
+    debugPrint('PROBE url change ${start.toIso8601String()}');
+    String? last;
+    while (DateTime.now().difference(start).inMilliseconds < 6000) {
+      final r = await read(
+        r'''(() => { const q = s => document.querySelectorAll(s).length;
+        const p = [...document.querySelectorAll('[data-pagelet]')].map(e => e.getAttribute('data-pagelet')).join(',');
+        return JSON.stringify({p, row: q('[role="row"]'), grid: q('[role="grid"]'), tb: q('[role="textbox"]'),
+          prog: q('[role="progressbar"]'), img: document.images.length, sk: q('[data-visualcompletion="loading-state"]')}); })()''',
+      );
+      final s = '$r';
+      if (s != last) {
+        debugPrint(
+          'PROBE +${DateTime.now().difference(start).inMilliseconds}ms $s',
+        );
+        last = s;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+    }
   }
 
   void _requestRedirect() {
@@ -246,7 +276,10 @@ class InstagramTab extends ChangeNotifier {
   Future<void> _openExternal(String url) async {
     var opened = false;
     try {
-      opened = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
     } on PlatformException {
       opened = false;
     }
@@ -256,7 +289,8 @@ class InstagramTab extends ChangeNotifier {
   /// `<input type="file">` on Android: system Photo Picker, no storage permission.
   Future<List<String>> _onShowFileSelector(FileSelectorParams params) async {
     if (params.mode == FileSelectorMode.save) return const [];
-    if (!UrlPolicy.isInstagramOrigin(await controller.currentUrl())) return const [];
+    if (!UrlPolicy.isInstagramOrigin(await controller.currentUrl()))
+      return const [];
     final request = MediaPickRequest.fromAcceptTypes(
       params.acceptTypes,
       multiple: params.mode == FileSelectorMode.openMultiple,
@@ -275,7 +309,9 @@ class InstagramTab extends ChangeNotifier {
       WebViewPermissionResourceType.microphone,
     };
     final types = request.types;
-    final fromInstagram = UrlPolicy.isInstagramOrigin(await controller.currentUrl());
+    final fromInstagram = UrlPolicy.isInstagramOrigin(
+      await controller.currentUrl(),
+    );
     if (!fromInstagram || types.isEmpty || !supported.containsAll(types)) {
       await request.deny();
       return;
@@ -330,7 +366,8 @@ class InstagramTab extends ChangeNotifier {
     if (last != null) {
       if (last == frame && animate == _sentHeaderAnimated) return;
       final tiny =
-          (last.text - frame.text).abs() < 0.02 && (last.backdrop - frame.backdrop).abs() < 0.02;
+          (last.text - frame.text).abs() < 0.02 &&
+          (last.backdrop - frame.backdrop).abs() < 0.02;
       if (!animate && tiny && last.state == frame.state) return;
     }
     _sentHeaderFrame = frame;
@@ -359,7 +396,11 @@ class InstagramTab extends ChangeNotifier {
 /// Shows an [InstagramTab]: the WebView, a thin loading bar and the error
 /// screen instead of a blank page.
 class InstagramTabView extends StatelessWidget {
-  const InstagramTabView({super.key, required this.tab, required this.onOpenSettings});
+  const InstagramTabView({
+    super.key,
+    required this.tab,
+    required this.onOpenSettings,
+  });
 
   final InstagramTab tab;
   final VoidCallback onOpenSettings;
@@ -392,7 +433,11 @@ class InstagramTabView extends StatelessWidget {
                 ),
               if (tab.error case final error?)
                 Positioned.fill(
-                  child: ErrorView(kind: error, onRetry: tab.retry, onOpenSettings: onOpenSettings),
+                  child: ErrorView(
+                    kind: error,
+                    onRetry: tab.retry,
+                    onOpenSettings: onOpenSettings,
+                  ),
                 ),
             ],
           ),

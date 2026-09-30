@@ -86,7 +86,9 @@ class _NoFeedNavBarState extends State<NoFeedNavBar> {
               border: Border.all(color: border, width: 0.8),
             ),
             child: SizedBox(
-              width: NoFeedNavBar.itemWidth * _tabs.length + NoFeedNavBar._gap * (_tabs.length - 1),
+              width:
+                  NoFeedNavBar.itemWidth * _tabs.length +
+                  NoFeedNavBar._gap * (_tabs.length - 1),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -97,11 +99,15 @@ class _NoFeedNavBarState extends State<NoFeedNavBar> {
                     duration: const Duration(milliseconds: 420),
                     curve: Curves.easeOutCubic,
                     builder: (context, position, _) {
-                      final travel = math.sin(math.pi * (position - position.floorToDouble()));
+                      final travel = math.sin(
+                        math.pi * (position - position.floorToDouble()),
+                      );
                       final width = NoFeedNavBar.itemWidth + 26 * travel;
                       final height = innerHeight * (1 - 0.08 * travel);
                       return Positioned(
-                        left: position * step - (width - NoFeedNavBar.itemWidth) / 2,
+                        left:
+                            position * step -
+                            (width - NoFeedNavBar.itemWidth) / 2,
                         top: (innerHeight - height) / 2,
                         width: width,
                         height: height,
@@ -221,7 +227,10 @@ class _NavItemState extends State<_NavItem> {
                     child: child,
                   ),
                 ),
-                child: KeyedSubtree(key: ValueKey(widget.selected), child: widget.child),
+                child: KeyedSubtree(
+                  key: ValueKey(widget.selected),
+                  child: widget.child,
+                ),
               ),
             ),
           ),
@@ -242,7 +251,10 @@ class _DirectIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomPaint(
       size: const Size.square(28),
-      painter: _DirectIconPainter(color: Theme.of(context).colorScheme.onSurface, filled: filled),
+      painter: _DirectIconPainter(
+        color: Theme.of(context).colorScheme.onSurface,
+        filled: filled,
+      ),
     );
   }
 }
@@ -295,7 +307,8 @@ class _DirectIconPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DirectIconPainter old) => old.color != color || old.filled != filled;
+  bool shouldRepaint(_DirectIconPainter old) =>
+      old.color != color || old.filled != filled;
 }
 
 /// Round profile picture like in Instagram's tab bar: a ring with a gap when
@@ -322,7 +335,10 @@ class _ProfileIcon extends StatelessWidget {
       padding: const EdgeInsets.all(2.5),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: selected ? color : Colors.transparent, width: 2),
+        border: Border.all(
+          color: selected ? color : Colors.transparent,
+          width: 2,
+        ),
       ),
       child: ClipOval(
         // Kept in Flutter's in-memory image cache only (never written to disk).

@@ -85,7 +85,8 @@ Uri? parseAvatarUrl(Object? result) {
     }
   }
   final uri = Uri.tryParse(text);
-  if (uri == null || uri.scheme != 'https' || uri.userInfo.isNotEmpty) return null;
+  if (uri == null || uri.scheme != 'https' || uri.userInfo.isNotEmpty)
+    return null;
   if (uri.hasPort && uri.port != 443) return null;
   final host = uri.host.toLowerCase();
   const cdns = ['cdninstagram.com', 'fbcdn.net'];

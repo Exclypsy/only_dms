@@ -21,7 +21,9 @@ class _UsernameDialog extends StatefulWidget {
 }
 
 class _UsernameDialogState extends State<_UsernameDialog> {
-  late final TextEditingController _text = TextEditingController(text: widget.initial ?? '');
+  late final TextEditingController _text = TextEditingController(
+    text: widget.initial ?? '',
+  );
   String? _errorText;
 
   @override
@@ -33,7 +35,10 @@ class _UsernameDialogState extends State<_UsernameDialog> {
   void _submit() {
     final username = NavTabs.normalizeUsername(_text.text);
     if (username == null) {
-      setState(() => _errorText = 'Len písmená, čísla, bodka a podčiarkovník (max. 30).');
+      setState(
+        () =>
+            _errorText = 'Len písmená, čísla, bodka a podčiarkovník (max. 30).',
+      );
       return;
     }
     Navigator.pop(context, username);
@@ -58,13 +63,20 @@ class _UsernameDialogState extends State<_UsernameDialog> {
             autocorrect: false,
             enableSuggestions: false,
             textInputAction: TextInputAction.done,
-            decoration: InputDecoration(prefixText: '@', hintText: 'meno', errorText: _errorText),
+            decoration: InputDecoration(
+              prefixText: '@',
+              hintText: 'meno',
+              errorText: _errorText,
+            ),
             onSubmitted: (_) => _submit(),
           ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Zrušiť')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Zrušiť'),
+        ),
         FilledButton(onPressed: _submit, child: const Text('Uložiť')),
       ],
     );
