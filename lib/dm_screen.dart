@@ -45,6 +45,8 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   /// Profile picture of the logged-in account (memory only, see viewer_account.dart).
   Uri? _avatarUrl;
   Brightness? _appliedBrightness;
+  String? _shownUrl;
+  Object? _shownError;
 
   /// New-message notifications (see unread_notifier.dart).
   final UnreadChatTracker _unread = UnreadChatTracker();
@@ -138,6 +140,8 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
       showMessage: _showMessage,
       onPageChanged: _onPageChanged,
       chatSnapshots: () => _settings.instantChats,
+      // Logged in before: the start page will appear, not the login page.
+      loadPlaceholders: () => _settings.username != null,
       canCaptureChat: () =>
           mounted && _lifecycle == AppLifecycleState.resumed && identical(_active, tab),
     )..addListener(_onTabChanged);
@@ -146,9 +150,22 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     return tab;
   }
 
+  /// A tab reports every loading step; the shell itself only depends on the
+  /// active tab's page and error (pill, status bar), so rebuild only for those.
   void _onTabChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final active = _active;
+    if (active.currentUrl == _shownUrl && active.error == _shownError) return;
+    setState(() {
+      _shownUrl = active.currentUrl;
+      _shownError = active.error;
+    });
   }
+
+  /// Before a tab reports its first page: logged in before means its start
+  /// page will appear, so the pill can be there from the first frame.
+  String? _expectedStartUrl(InstagramTab tab) =>
+      _settings.username == null ? null : tab.homeUri.toString();
 
   static String _cssColor(Color c) =>
       '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
@@ -287,15 +304,13 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
         final home = _home;
         if (home == null) {
           setState(() => _home = _createTab(UrlPolicy.followingFeedUri)..load());
-        } else if (_activeTab == NavTab.home && !UrlPolicy.isFollowingFeed(home.currentUrl)) {
-          // Tapping the active tab again goes back to its start.
-          home.load();
+        } else if (_activeTab == NavTab.home) {
+          _backToStart(home, atStart: UrlPolicy.isFollowingFeed(home.currentUrl));
         }
         setState(() => _activeTab = NavTab.home);
       case NavTab.messages:
-        // Tapping the active tab again goes back to its start, like in the app.
-        if (_activeTab == NavTab.messages && !UrlPolicy.isInbox(_messages.currentUrl)) {
-          _messages.load();
+        if (_activeTab == NavTab.messages) {
+          _backToStart(_messages, atStart: UrlPolicy.isInbox(_messages.currentUrl));
         }
         setState(() => _activeTab = NavTab.messages);
       case NavTab.profile:
@@ -311,11 +326,25 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
         final wasActive = _activeTab == NavTab.profile && _profile != null;
         _ensureProfileTab(username);
         final profile = _profile!;
-        if (wasActive &&
-            NavTabs.activeTab(profile.currentUrl, username: username) != NavTab.profile) {
-          profile.load();
+        if (wasActive) {
+          _backToStart(
+            profile,
+            atStart: NavTabs.activeTab(profile.currentUrl, username: username) == NavTab.profile,
+          );
         }
         setState(() => _activeTab = NavTab.profile);
+    }
+  }
+
+  /// Tapping the active tab again, like in the Instagram app: back to the
+  /// tab's start page, or to its top if it is already there.
+  void _backToStart(InstagramTab tab, {required bool atStart}) {
+    if (tab.error != null) {
+      tab.retry();
+    } else if (atStart) {
+      tab.controller.scrollTo(0, 0);
+    } else {
+      tab.load();
     }
   }
 
@@ -397,7 +426,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
               ),
               // Floating Instagram-style pill: Home, Messages and Profile only.
               // Hidden inside a chat, on login pages and while typing.
-              if (NavTabs.showBar(active.currentUrl) &&
+              if (NavTabs.showBar(active.currentUrl ?? _expectedStartUrl(active)) &&
                   active.error == null &&
                   MediaQuery.viewInsetsOf(context).bottom == 0)
                 Positioned(

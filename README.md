@@ -51,11 +51,21 @@ you log in directly on instagram.com and the app never sees your password.
   header stays visible; no "‹ › ✓" bar above the keyboard on iOS; the keyboard
   does not open by itself when a chat opens; a tap into the conversation or a
   drag down closes it. All of this is native – no JavaScript.
+- **No empty screens** (`lib/page_placeholder.dart`, `lib/page_skeleton.dart`):
+  while Instagram loads the inbox (app start), a chat or the Following feed,
+  NoFeed shows its own skeleton of that page (grey shapes in the page's layout,
+  drawn by the app) and fades it into the real page. The pill is there from the
+  first frame. To know when to fade, a script returns one number ("is the page
+  drawn yet?") – no text, names or images.
+- **Tapping the active tab again** goes back to its start page, or scrolls to
+  the top if it is already there.
 - **Instant chats** (`lib/chat_snapshot.dart`, Settings → Súkromie, on by
   default): NoFeed keeps a picture of each chat you open and shows it at once
   the next time, until Instagram has loaded the live chat (about a second) and
-  the picture fades out. The first opening of a chat is as fast as the website;
-  chats are never opened in the background (that would mark them as read).
+  the picture fades out. A chat without a picture shows the chat skeleton
+  instead; chats are never opened in the background (that would mark them as
+  read). The picture is refreshed only when the chat may have changed (after it
+  opened, after a touch or typing, now and then for incoming messages).
   Pictures live only in the app's private cache folder (not backed up, at most
   30 chats, encrypted by iOS while the phone is locked) and are deleted on
   logout or when the setting is turned off.
@@ -129,6 +139,7 @@ for the name and shows a person icon instead.
 | `lib/unread_notifier.dart` + `Notifications.kt`, `KeepAliveService.kt`, `AppDelegate.swift` | new-message notifications |
 | `lib/chat_keyboard.dart` | when to close the keyboard in a chat |
 | `lib/chat_snapshot.dart` + `ChatSnapshots.kt`, `AppDelegate.swift` | pictures of opened chats for instant opening |
+| `lib/page_placeholder.dart`, `lib/page_skeleton.dart` | loading skeletons and the "page is drawn" check |
 | `lib/native_bridge.dart` + `MainActivity.kt`, `AppDelegate.swift` | small platform channel |
 | `assets/icon/icon.svg` | app icon source |
 

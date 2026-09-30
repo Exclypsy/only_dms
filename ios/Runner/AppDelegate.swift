@@ -179,13 +179,17 @@ enum ChatSnapshots {
       return
     }
     webView.takeSnapshot(with: nil) { image, _ in
-      guard let data = image?.jpegData(compressionQuality: 0.82) else {
+      guard let image else {
         completion(false)
         return
       }
+      // Encoding and writing happen off the main thread.
       queue.async {
         var saved = false
         do {
+          guard let data = image.jpegData(compressionQuality: 0.82) else {
+            throw CocoaError(.fileWriteUnknown)
+          }
           try FileManager.default.createDirectory(
             at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
           try data.write(to: file, options: [.atomic, .completeFileProtection])

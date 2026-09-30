@@ -17,6 +17,8 @@ import 'header_reveal.dart';
 import 'media_pick_request.dart';
 import 'nav_tabs.dart';
 import 'native_bridge.dart';
+import 'page_placeholder.dart';
+import 'page_skeleton.dart';
 import 'redirect_guard.dart';
 import 'url_policy.dart';
 
@@ -37,6 +39,7 @@ class InstagramTab extends ChangeNotifier {
     this._onPageChanged,
     this._chatSnapshots,
     this._canCaptureChat,
+    this._loadPlaceholders,
   }) {
     // iOS: play videos inline in the chat instead of forcing full screen.
     final PlatformWebViewControllerCreationParams params =
@@ -93,8 +96,8 @@ class InstagramTab extends ChangeNotifier {
     }
   }
 
-  /// How long the picture of a chat takes to fade into the live chat.
-  static const Duration chatSnapshotFade = Duration(milliseconds: 180);
+  /// How long a placeholder takes to fade into the loaded page.
+  static const Duration placeholderFade = Duration(milliseconds: 180);
 
   static const _offlineErrors = {
     WebResourceErrorType.hostLookup,
@@ -118,6 +121,10 @@ class InstagramTab extends ChangeNotifier {
   /// Whether this tab is on screen right now (a picture can be taken).
   final bool Function()? _canCaptureChat;
 
+  /// Whether a skeleton may be shown while the tab's start page loads. False
+  /// before the first login, when the login page is what will appear.
+  final bool Function()? _loadPlaceholders;
+
   final RedirectGuard _redirectGuard = RedirectGuard(maxRedirects: 5);
   Timer? _redirectTimer;
   String? _lastUrl;
@@ -138,12 +145,21 @@ class InstagramTab extends ChangeNotifier {
   /// Counts page changes, so work started for an older page stops.
   int _pageSession = 0;
 
-  /// Picture of the chat being opened, shown over the page until Instagram
-  /// has loaded the live chat (see chat_snapshot.dart).
-  Uint8List? chatSnapshot;
+  /// Shown over the page while it loads (see page_placeholder.dart): the
+  /// skeleton of this kind of page, or [placeholderPicture] instead.
+  PagePlaceholder? placeholder;
 
-  /// False while [chatSnapshot] fades out.
-  bool chatSnapshotVisible = false;
+  /// Saved picture of the chat being opened (see chat_snapshot.dart).
+  Uint8List? placeholderPicture;
+
+  /// False while [placeholder] fades out.
+  bool placeholderVisible = false;
+
+  /// Kind of the start page whose loading the placeholder is waiting for.
+  PagePlaceholder? _loadingKind;
+
+  /// The chat may look different than its saved picture (see [_watchChat]).
+  bool _captureDue = false;
 
   bool _disposed = false;
 
@@ -163,7 +179,9 @@ class InstagramTab extends ChangeNotifier {
   /// Loads [uri], or the tab's home page.
   void load([Uri? uri]) {
     _lastUrl = null;
-    controller.loadRequest(uri ?? homeUri);
+    final target = uri ?? homeUri;
+    _showLoadPlaceholder(target.toString());
+    controller.loadRequest(target);
   }
 
   void retry() {
@@ -205,6 +223,7 @@ class InstagramTab extends ChangeNotifier {
   void keyboardChanged({required bool visible}) {
     if (visible == _keyboardVisible) return;
     _keyboardVisible = visible;
+    if (!visible) _captureDue = true;
     // Instagram focuses the composer by itself when a chat opens; the
     // Instagram app does not open the keyboard until you tap the composer.
     if (visible && _chatKeyboard.keyboardShown()) _dismissKeyboard();
@@ -222,6 +241,7 @@ class InstagramTab extends ChangeNotifier {
   }
 
   void pointerUp(Offset position) {
+    _captureDue = true;
     if (_keyboardVisible && UrlPolicy.isChat(currentUrl) && _chatKeyboard.pointerUp(position)) {
       _dismissKeyboard();
     }
@@ -287,7 +307,7 @@ class InstagramTab extends ChangeNotifier {
     _applyCosmetics(url);
     if (!changed) return;
     if (UrlPolicy.isChat(url)) _chatKeyboard.chatOpened();
-    _watchChat(url);
+    _pageChanged(url);
     _headerSettleTimer?.cancel();
     _headerReveal.reset();
     _sentHeaderFrame = null;
@@ -295,70 +315,126 @@ class InstagramTab extends ChangeNotifier {
     _onPageChanged?.call(this, url);
   }
 
-  /// Instant chats: shows the saved picture of the chat at once, fades it out
-  /// when the live chat has loaded, and keeps the picture up to date while
+  /// Skeleton of the tab's start page from the very first frame, until
+  /// Instagram has drawn the page.
+  void _showLoadPlaceholder(String url) {
+    final kind = pagePlaceholderFor(url);
+    if (kind == null || kind == PagePlaceholder.chat) return;
+    if (!(_loadPlaceholders?.call() ?? false)) return;
+    final session = ++_pageSession;
+    bool current() => session == _pageSession && !_disposed;
+    _loadingKind = kind;
+    _setPlaceholder(kind, null);
+    () async {
+      await _waitUntilDrawn(current, kind, const Duration(seconds: 10));
+      if (!current()) return;
+      _loadingKind = null;
+      await _fadeOutPlaceholder(current);
+    }();
+  }
+
+  /// The tab shows a different page now.
+  void _pageChanged(String url) {
+    final kind = pagePlaceholderFor(url);
+    final loading = _loadingKind;
+    if (loading != null) {
+      if (kind == loading) return; // the page the skeleton is waiting for
+      _loadingKind = null; // e.g. redirected to the login page
+    }
+    if (kind == PagePlaceholder.chat) {
+      _watchChat(url);
+    } else {
+      _pageSession++;
+      _dropPlaceholder();
+    }
+  }
+
+  /// Opening a chat: shows its saved picture (or a skeleton) at once, fades it
+  /// out when the live chat has loaded, and keeps the picture up to date while
   /// the chat is open and shows its newest messages.
   Future<void> _watchChat(String url) async {
     final session = ++_pageSession;
     bool current() => session == _pageSession && !_disposed;
 
-    final key = (_chatSnapshots?.call() ?? false) ? chatSnapshotKey(url, dark: _dark) : null;
     final id = _nativeId;
-    if (key == null || id == null) {
-      _dropSnapshot();
-      return;
-    }
-
-    final picture = await NativeBridge.loadChatSnapshot(key);
+    final snapshots = id != null && (_chatSnapshots?.call() ?? false);
+    final key = snapshots ? chatSnapshotKey(url, dark: _dark) : null;
+    final picture = key == null ? null : await NativeBridge.loadChatSnapshot(key);
     if (!current()) return;
-    chatSnapshot = picture;
-    chatSnapshotVisible = picture != null;
-    _notify();
+    _setPlaceholder(PagePlaceholder.chat, picture);
 
-    // Wait until Instagram has rendered the messages (give up after a while:
-    // a stale picture must not hide an error or a very slow page for long).
-    final started = DateTime.now();
-    var state = ChatPageState.loading;
-    while (state == ChatPageState.loading) {
-      await Future<void>.delayed(const Duration(milliseconds: 120));
-      if (!current()) return;
-      state = parseChatPageState(await read(chatPageStateScript));
-      if (!current()) return;
-      if (DateTime.now().difference(started) > const Duration(seconds: 5)) break;
-    }
-    // Let the freshly rendered chat paint before the picture goes away.
-    await Future<void>.delayed(const Duration(milliseconds: 150));
+    // A stale picture must not hide an error or a very slow page for long.
+    final drawn = await _waitUntilDrawn(current, PagePlaceholder.chat, const Duration(seconds: 5));
     if (!current()) return;
-    await _fadeOutSnapshot(current);
-    if (state == ChatPageState.loading) return;
+    await _fadeOutPlaceholder(current);
+    if (!drawn || key == null || id == null) return;
 
-    // Keep the picture fresh: photos finish loading, messages come and go.
-    var delay = const Duration(milliseconds: 900);
+    // Keep the picture fresh, but only when something may have changed: after
+    // the chat opened (photos finish loading), after a touch or typing, and
+    // now and then for incoming messages.
+    const tick = Duration(milliseconds: 1500);
+    var sinceCapture = Duration.zero;
+    _captureDue = true;
+    await Future<void>.delayed(const Duration(milliseconds: 900));
     while (current()) {
-      await Future<void>.delayed(delay);
-      if (!current()) return;
-      delay = const Duration(seconds: 5);
-      if (_keyboardVisible || error != null || !(_canCaptureChat?.call() ?? false)) continue;
-      state = parseChatPageState(await read(chatPageStateScript));
-      if (!current()) return;
-      if (state == ChatPageState.atNewest) {
-        await NativeBridge.saveChatSnapshot(webViewId: id, key: key);
+      final due = _captureDue || sinceCapture >= const Duration(seconds: 20);
+      if (due && !_keyboardVisible && error == null && (_canCaptureChat?.call() ?? false)) {
+        final state = parseChatPageState(await read(chatPageStateScript));
+        if (!current()) return;
+        if (state == ChatPageState.atNewest) {
+          _captureDue = false;
+          sinceCapture = Duration.zero;
+          await NativeBridge.saveChatSnapshot(webViewId: id, key: key);
+        }
       }
+      await Future<void>.delayed(tick);
+      sinceCapture += tick;
     }
   }
 
-  Future<void> _fadeOutSnapshot(bool Function() current) async {
-    if (chatSnapshot == null) return;
-    chatSnapshotVisible = false;
-    _notify();
-    await Future<void>.delayed(chatSnapshotFade);
-    if (current()) _dropSnapshot();
+  /// Waits until Instagram has drawn the page of [kind]; false if it did not
+  /// within [timeout] or the page failed to load.
+  Future<bool> _waitUntilDrawn(
+    bool Function() current,
+    PagePlaceholder kind,
+    Duration timeout,
+  ) async {
+    final started = DateTime.now();
+    final script = pageReadyScript(kind);
+    while (true) {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!current()) return false;
+      final drawn = parsePageReady(await read(script));
+      if (!current()) return false;
+      if (drawn) {
+        // Let the freshly drawn page paint before the placeholder goes away.
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        return current();
+      }
+      if (error != null || DateTime.now().difference(started) > timeout) return false;
+    }
   }
 
-  void _dropSnapshot() {
-    if (chatSnapshot == null) return;
-    chatSnapshot = null;
-    chatSnapshotVisible = false;
+  void _setPlaceholder(PagePlaceholder kind, Uint8List? picture) {
+    placeholder = kind;
+    placeholderPicture = picture;
+    placeholderVisible = true;
+    _notify();
+  }
+
+  Future<void> _fadeOutPlaceholder(bool Function() current) async {
+    if (placeholder == null) return;
+    placeholderVisible = false;
+    _notify();
+    await Future<void>.delayed(placeholderFade);
+    if (current()) _dropPlaceholder();
+  }
+
+  void _dropPlaceholder() {
+    if (placeholder == null) return;
+    placeholder = null;
+    placeholderPicture = null;
+    placeholderVisible = false;
     _notify();
   }
 
@@ -436,6 +512,10 @@ class InstagramTab extends ChangeNotifier {
 
   void _onWebResourceError(WebResourceError webError) {
     if (webError.isForMainFrame != true) return;
+    // The error screen replaces any placeholder.
+    _pageSession++;
+    _loadingKind = null;
+    _dropPlaceholder();
     error = _offlineErrors.contains(webError.errorType)
         ? LoadErrorKind.offline
         : LoadErrorKind.generic;
@@ -520,21 +600,29 @@ class InstagramTabView extends StatelessWidget {
                   child: WebViewWidget(controller: tab.controller),
                 ),
               ),
-              if (tab.chatSnapshot case final picture?)
+              if (tab.placeholder case final kind?)
                 Positioned.fill(
                   // Touches go to the page underneath.
                   child: IgnorePointer(
                     child: AnimatedOpacity(
-                      opacity: tab.chatSnapshotVisible ? 1 : 0,
-                      duration: InstagramTab.chatSnapshotFade,
-                      child: Image.memory(
-                        picture,
-                        fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
-                        gaplessPlayback: true,
-                        excludeFromSemantics: true,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                      ),
+                      opacity: tab.placeholderVisible ? 1 : 0,
+                      duration: InstagramTab.placeholderFade,
+                      child: switch (tab.placeholderPicture) {
+                        final picture? => Image.memory(
+                          picture,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
+                          gaplessPlayback: true,
+                          excludeFromSemantics: true,
+                          errorBuilder: (_, _, _) => PageSkeleton(kind: kind),
+                        ),
+                        null => PageSkeleton(
+                          kind: kind,
+                          topInset: edgeToEdge ? MediaQuery.paddingOf(context).top : 0,
+                          // iOS: the page reaches to the screen edge.
+                          bottomInset: isIOS ? 17 : 12,
+                        ),
+                      },
                     ),
                   ),
                 ),
