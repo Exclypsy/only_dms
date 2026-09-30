@@ -95,34 +95,24 @@ enum WebViewKeyboard {
     for name in keyboardNotifications {
       NotificationCenter.default.removeObserver(webView, name: name, object: nil)
     }
-    hideAccessoryBar(webView)
+    hideAccessoryBar()
   }
 
-  /// WebKit's text input view (WKContentView) gets a subclass whose
-  /// `inputAccessoryView` is nil. Public Objective-C runtime API only.
-  private static func hideAccessoryBar(_ webView: WKWebView) {
-    guard
-      let contentView = webView.scrollView.subviews.first(where: {
-        NSStringFromClass(type(of: $0)).hasPrefix("WKContent")
-      })
-    else { return }
-    let baseClass: AnyClass = type(of: contentView)
-    let suffix = "_NoFeedNoAccessory"
-    let baseName = NSStringFromClass(baseClass)
-    if baseName.hasSuffix(suffix) { return }
-    let name = baseName + suffix
-    var subclass: AnyClass? = NSClassFromString(name)
-    if subclass == nil, let newClass = objc_allocateClassPair(baseClass, name, 0) {
-      let selector = #selector(getter: UIResponder.inputAccessoryView)
-      let noAccessory: @convention(block) (AnyObject) -> UIView? = { _ in nil }
-      if let method = class_getInstanceMethod(UIResponder.self, selector) {
-        class_addMethod(
-          newClass, selector, imp_implementationWithBlock(noAccessory),
-          method_getTypeEncoding(method))
-      }
-      objc_registerClassPair(newClass)
-      subclass = newClass
+  /// WebKit's text input view (WKContentView) returns no `inputAccessoryView`.
+  /// Done once for the class (public Objective-C runtime API only); changing
+  /// the class of a live view instead left the page blank.
+  private static var accessoryBarHidden = false
+
+  private static func hideAccessoryBar() {
+    guard !accessoryBarHidden, let contentViewClass = NSClassFromString("WKContentView") else {
+      return
     }
-    if let subclass { object_setClass(contentView, subclass) }
+    accessoryBarHidden = true
+    let selector = #selector(getter: UIResponder.inputAccessoryView)
+    guard let method = class_getInstanceMethod(UIResponder.self, selector) else { return }
+    let noAccessory: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+    class_replaceMethod(
+      contentViewClass, selector, imp_implementationWithBlock(noAccessory),
+      method_getTypeEncoding(method))
   }
 }
