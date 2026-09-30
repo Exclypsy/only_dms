@@ -279,13 +279,15 @@ class InstagramTab extends ChangeNotifier {
       if (!root) return 'no root';
       const roles = {};
       root.querySelectorAll('[role]').forEach(e => { const k = e.tagName + '/' + e.getAttribute('role'); roles[k] = (roles[k]||0)+1; });
-      const rows = [...root.querySelectorAll('[role="button"], [role="link"], a[href*="/direct/t/"]')].filter(e => e.querySelector('img') && e.innerText.includes('\n')).slice(0, 3);
-      const d = rows.map(e => ({tag: e.tagName, role: e.getAttribute('role'), href: e.getAttribute('href'), aria: e.getAttribute('aria-label'),
-        spans: [...e.querySelectorAll('span[dir="auto"], span')].filter(x => x.children.length === 0 && x.textContent.trim()).slice(0, 8).map(x => ({t: x.textContent.slice(0, 40), fw: getComputedStyle(x).fontWeight, dir: x.getAttribute('dir')})),
-        dots: e.querySelectorAll('[aria-label*="nread"], [aria-label*="eprečítan"]').length}));
+      const rows = [...root.querySelectorAll('div[role="button"]')].filter(e => e.innerText.includes('·')).slice(0, 4);
+      const d = rows.map(e => ({lines: e.innerText.split('\n').map(x => x.slice(0, 30)),
+        leaves: [...e.querySelectorAll('span, abbr, div')].filter(x => x.children.length === 0 && x.textContent.trim()).map(x => x.tagName + ':' + getComputedStyle(x).fontWeight + ':' + x.textContent.slice(0, 20) + (x.getAttribute('aria-label') ? '[' + x.getAttribute('aria-label') + ']' : '')),
+        status: [...e.querySelectorAll('[role="status"], [aria-label]')].map(x => x.tagName + '/' + x.getAttribute('role') + '/' + x.getAttribute('aria-label')),
+        nested: e.querySelectorAll('div[role="button"]').length}));
       return JSON.stringify({roles, rows: d});
     })()""");
     debugPrint('PROBE inbox $r');
+    debugPrint('PROBE title ${await controller.getTitle()}');
   }
 
   // TEMP-PROBE: structure only (counts / pagelet names), no text.
