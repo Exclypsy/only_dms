@@ -45,6 +45,7 @@ class InstagramTab extends ChangeNotifier {
     this._wallpapers,
     this._wallpaperDim,
     this._onChatHeaderHold,
+    this._anonymous,
   }) {
     _wallpapers?.addListener(refreshWallpaper);
     // iOS: play videos inline in the chat instead of forcing full screen.
@@ -137,6 +138,9 @@ class InstagramTab extends ChangeNotifier {
   /// dimmed.
   final ChatWallpaperStore? _wallpapers;
   final double Function()? _wallpaperDim;
+
+  /// Anonymous mode: names and profile pictures are covered (setting).
+  final bool Function()? _anonymous;
 
   /// The header of an open chat was held down (menu for this chat).
   final void Function(InstagramTab tab)? _onChatHeaderHold;
@@ -296,6 +300,13 @@ class InstagramTab extends ChangeNotifier {
   }
 
   void _dismissKeyboard() => NativeBridge.dismissKeyboard(webViewId: _nativeId);
+
+  /// Applies the cosmetic settings to the current page again (after a setting
+  /// such as the anonymous mode changed).
+  void refreshCosmetics() {
+    final url = currentUrl;
+    if (url != null && !_disposed) _applyCosmetics(url);
+  }
 
   /// Shows the right custom background for the current page (none outside a
   /// chat). Called when the page, the saved backgrounds or the dimming change.
@@ -655,6 +666,7 @@ class InstagramTab extends ChangeNotifier {
       background: _pageBackground(),
       edgeToEdge: _edgeToEdge(url),
       isChat: UrlPolicy.isChat(url),
+      anonymous: _anonymous?.call() ?? false,
     ),
   );
 }

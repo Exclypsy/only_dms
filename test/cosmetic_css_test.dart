@@ -73,9 +73,60 @@ void main() {
   });
 
   test('inbox layout rules are scoped to the inbox page', () {
-    for (final line in cosmeticCss.split('\n').where((l) => l.contains('IGDInboxThreadList'))) {
+    final lines = cosmeticCss
+        .split('\n')
+        .where((l) => l.contains('IGDInboxThreadList') && !l.contains('data-nofeed-anon'));
+    expect(lines, isNotEmpty);
+    for (final line in lines) {
       expect(line, startsWith('html['), reason: line);
       expect(line, contains('[data-nofeed-page="inbox"]'), reason: line);
     }
+  });
+
+  group('anonymous mode', () {
+    test('every rule applies only while the mode is on', () {
+      final rules = anonymousCss.split('\n');
+      expect(rules.length, anonymousNameSelectors.length + anonymousPictureSelectors.length);
+      for (final rule in rules) {
+        expect(rule, startsWith('html[data-nofeed-anon="1"] '), reason: rule);
+      }
+      expect(cosmeticCss, contains(anonymousCss));
+    });
+
+    test('names become transparent (layout kept) and pictures get a neutral icon', () {
+      for (final selector in anonymousNameSelectors) {
+        expect(anonymousCss, contains('$selector { opacity: 0 !important; }'), reason: selector);
+      }
+      // Instagram's own pseudo-elements and the layout are left alone.
+      expect(anonymousCss.contains('::after'), isFalse);
+      expect(anonymousCss.contains('display: none'), isFalse);
+      for (final selector in anonymousPictureSelectors) {
+        expect(
+          anonymousCss,
+          contains('$selector { content: url("data:image/svg+xml,'),
+          reason: selector,
+        );
+      }
+      // Nothing is loaded from the network for the icon.
+      expect(anonymousCss.contains('http://www.w3.org/2000/svg'), isTrue);
+      expect(RegExp(r'url\("(?!data:)').hasMatch(anonymousCss), isFalse);
+    });
+
+    test('message texts are not touched', () {
+      for (final selector in [...anonymousNameSelectors, ...anonymousPictureSelectors]) {
+        expect(selector.contains('[role="presentation"]'), isFalse, reason: selector);
+      }
+      // Pictures are limited to the chat list, the chat header and the chat.
+      for (final selector in anonymousPictureSelectors) {
+        expect(selector, startsWith('[data-pagelet="IGD'), reason: selector);
+      }
+    });
+
+    test('the script switches the mode with one attribute', () {
+      String script({required bool anonymous}) =>
+          cosmeticScript(isInbox: true, navBar: true, background: '#0c1014', anonymous: anonymous);
+      expect(script(anonymous: true), contains("'data-nofeed-anon', \"1\""));
+      expect(script(anonymous: false), contains("'data-nofeed-anon', \"0\""));
+    });
   });
 }

@@ -12,6 +12,7 @@ class AppSettings {
     this.notificationsEnabled = false,
     this.instantChats = true,
     this.wallpaperDim = defaultWallpaperDim,
+    this.anonymousMode = false,
     this.username,
   });
 
@@ -33,6 +34,11 @@ class AppSettings {
   /// How strongly a custom chat background is dimmed (see chat_wallpaper.dart).
   final double wallpaperDim;
 
+  /// Covers names and profile pictures in the chat list and inside chats
+  /// (purely visual, see cosmetic_css.dart) and leaves names out of
+  /// notifications.
+  final bool anonymousMode;
+
   /// The user's own Instagram username (detected in the inbox header, see
   /// viewer_account.dart, or typed in), used only for the Profile button.
   final String? username;
@@ -47,6 +53,7 @@ class AppSettings {
     bool? notificationsEnabled,
     bool? instantChats,
     double? wallpaperDim,
+    bool? anonymousMode,
     String? username,
     bool clearUsername = false,
   }) => AppSettings(
@@ -56,6 +63,7 @@ class AppSettings {
     notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
     instantChats: instantChats ?? this.instantChats,
     wallpaperDim: wallpaperDim ?? this.wallpaperDim,
+    anonymousMode: anonymousMode ?? this.anonymousMode,
     username: clearUsername ? null : (username ?? this.username),
   );
 }
@@ -71,6 +79,7 @@ class SettingsStore {
   static const _notificationsEnabled = 'notifications_enabled';
   static const _instantChats = 'instant_chats';
   static const _wallpaperDim = 'wallpaper_dim';
+  static const _anonymousMode = 'anonymous_mode';
   static const _username = 'profile_username';
 
   Future<AppSettings> load() async {
@@ -85,6 +94,7 @@ class SettingsStore {
       wallpaperDim: (await _prefs.getDouble(_wallpaperDim) ?? defaults.wallpaperDim)
           .clamp(0, maxWallpaperDim)
           .toDouble(),
+      anonymousMode: await _prefs.getBool(_anonymousMode) ?? defaults.anonymousMode,
       username: await _prefs.getString(_username),
     );
   }
@@ -103,6 +113,7 @@ class SettingsStore {
     await _prefs.setBool(_notificationsEnabled, settings.notificationsEnabled);
     await _prefs.setBool(_instantChats, settings.instantChats);
     await _prefs.setDouble(_wallpaperDim, settings.wallpaperDim);
+    await _prefs.setBool(_anonymousMode, settings.anonymousMode);
     final username = settings.username;
     if (username == null) {
       await _prefs.remove(_username);

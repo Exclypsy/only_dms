@@ -5,7 +5,7 @@ import 'header_reveal.dart';
 /// Purely cosmetic CSS. Blocking itself is done by `UrlPolicy`; this only
 /// removes dead-end buttons. If Instagram changes its markup, update the
 /// selectors here – a selector that no longer matches simply does nothing.
-const String cosmeticCss = '''
+const String _pageCss = '''
 /* Links to the feed, Explore and Reels. */
 a[href="/"],
 a[href="/explore/"],
@@ -221,6 +221,60 @@ html[data-nofeed-chat="1"] [data-pagelet="IGDMessagesList"] {
 }
 ''';
 
+/// Anonymous mode (setting): names and profile pictures in the chat list and
+/// inside chats are covered, so nobody looking at the screen sees who you talk
+/// to. Message texts stay. Purely visual – the page itself is unchanged.
+///
+/// Texts that are names. Found by their place in the page (Instagram's class
+/// names are random), so a change of Instagram's page can uncover them again.
+const List<String> anonymousNameSelectors = [
+  // Chat list: the name line of a chat row (the other line has the time).
+  '[data-pagelet="IGDInboxThreadListScrollableAreaPagelet"] div[role="button"]:has(abbr) div:not(:has(abbr)) > span[dir="auto"]',
+  // Notes above the chat list: the name under the picture.
+  '[data-pagelet="IGDInboxThreadListScrollableAreaPagelet"] ul li div:has(> span[role="link"]) + div > span[dir="auto"]',
+  // Your own username at the top of the chat list.
+  '[role="navigation"] [role="button"] h2',
+  // Header of an open chat: name and username.
+  '[data-pagelet="IGDInboxHeaderOffMsys"] h2',
+  '[data-pagelet="IGDInboxHeaderOffMsys"] span[dir="auto"]',
+  // Inside a chat: sender names in groups and "… replied to …".
+  '[data-pagelet="IGDMessagesList"] div:empty + div > div:not([role]) > span[dir="auto"]',
+  // Inside a chat: "Seen by …".
+  '[data-pagelet="IGDMessagesList"] > div > div > div > span[dir="auto"]',
+];
+
+/// Profile pictures.
+const List<String> anonymousPictureSelectors = [
+  '[data-pagelet="IGDInboxThreadListScrollableAreaPagelet"] :is(img[alt="user-profile-picture"], img[alt="User avatar"])',
+  '[data-pagelet="IGDInboxHeaderOffMsys"] :is(img[alt="user-profile-picture"], img[alt="User avatar"])',
+  '[data-pagelet="IGDMessagesList"] :is(img[alt="user-profile-picture"], img[alt="User avatar"])',
+  // Notes above the chat list.
+  '[data-pagelet="IGDInboxThreadListScrollableAreaPagelet"] ul li span[role="link"] img',
+];
+
+const String _anonymous = 'html[data-nofeed-anon="1"]';
+
+/// A neutral person icon shown instead of a profile picture (the picture's
+/// address in the page stays as it is).
+const String _anonymousPicture =
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E"
+    "%3Crect width='40' height='40' fill='%23717b85'/%3E"
+    "%3Ccircle cx='20' cy='15.5' r='7' fill='%23c3c9cf'/%3E"
+    "%3Cpath d='M5.5 40c0-8.6 6.2-14 14.5-14s14.5 5.4 14.5 14z' fill='%23c3c9cf'/%3E%3C/svg%3E\")";
+
+/// One rule per selector: if a browser does not understand one of them, the
+/// others still work. A name is made fully transparent: that also hides emoji
+/// and pictures inside it, keeps the layout and the taps, and does not touch
+/// the `::before`/`::after` Instagram itself uses on its texts.
+final String anonymousCss = [
+  for (final selector in anonymousNameSelectors) '$_anonymous $selector { opacity: 0 !important; }',
+  for (final selector in anonymousPictureSelectors)
+    '$_anonymous $selector { content: $_anonymousPicture !important; }',
+].join('\n');
+
+/// All cosmetic rules inserted into the page.
+final String cosmeticCss = '$_pageCss\n$anonymousCss\n';
+
 /// JavaScript that marks the current page on `<html>` (for the rules above),
 /// sets the page background colour, adds the empty decorative blur element
 /// and inserts [cosmeticCss] as a `<style>` element once.
@@ -231,6 +285,7 @@ String cosmeticScript({
   required String background,
   bool edgeToEdge = false,
   bool isChat = false,
+  bool anonymous = false,
 }) =>
     '''
 (function () {
@@ -239,6 +294,7 @@ String cosmeticScript({
   html.setAttribute('data-nofeed-nav', ${jsonEncode(navBar ? '1' : '0')});
   html.setAttribute('data-nofeed-edge', ${jsonEncode(edgeToEdge ? '1' : '0')});
   html.setAttribute('data-nofeed-chat', ${jsonEncode(isChat ? '1' : '0')});
+  html.setAttribute('data-nofeed-anon', ${jsonEncode(anonymous ? '1' : '0')});
   html.style.setProperty('--nofeed-bg', ${jsonEncode(background)});
   if (!document.getElementById('nofeed-blur')) {
     var blur = document.createElement('div');

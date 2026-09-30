@@ -113,7 +113,12 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
         UrlPolicy.isInbox(_messages.currentUrl);
     if (lookingAtInbox) return;
     for (final chat in fresh.take(3)) {
-      await NativeBridge.showNotification(title: chat.name, body: chat.text, tag: chat.name);
+      await NativeBridge.showNotification(
+        // Anonymous mode: no name (the tag is not shown, it only groups).
+        title: _settings.anonymousMode ? 'Nová správa' : chat.name,
+        body: chat.text,
+        tag: chat.name,
+      );
     }
   }
 
@@ -155,6 +160,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
       wallpapers: _wallpapers,
       wallpaperDim: () => _settings.wallpaperDim,
       onChatHeaderHold: _showChatBackgroundSheet,
+      anonymous: () => _settings.anonymousMode,
       canCaptureChat: () =>
           mounted && _lifecycle == AppLifecycleState.resumed && identical(_active, tab),
     )..addListener(_onTabChanged);
@@ -280,6 +286,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     final notificationsChanged = settings.notificationsEnabled != _settings.notificationsEnabled;
     final snapshotsTurnedOff = _settings.instantChats && !settings.instantChats;
     final dimChanged = settings.wallpaperDim != _settings.wallpaperDim;
+    final anonymousChanged = settings.anonymousMode != _settings.anonymousMode;
     setState(() {
       _settings = settings;
       _policy = settings.urlPolicy;
@@ -287,6 +294,13 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     if (secureChanged) await NativeBridge.setSecure(settings.hideInRecents);
     if (notificationsChanged) _applyNotifications();
     if (snapshotsTurnedOff) await NativeBridge.clearChatSnapshots();
+    if (anonymousChanged) {
+      // Saved pictures of chats show (or hide) the names of the other mode.
+      await NativeBridge.clearChatSnapshots();
+      for (final tab in _tabs) {
+        tab.refreshCosmetics();
+      }
+    }
     if (dimChanged) {
       // Saved pictures of chats show the old dimming.
       await NativeBridge.clearChatSnapshots();
@@ -506,7 +520,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
                   child: Center(
                     child: NoFeedNavBar(
                       active: _activeTab,
-                      avatarUrl: _avatarUrl,
+                      avatarUrl: _settings.anonymousMode ? null : _avatarUrl,
                       onTap: _onNavTap,
                       onLongPressProfile: _openSettings,
                     ),

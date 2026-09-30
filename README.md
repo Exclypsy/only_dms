@@ -69,6 +69,14 @@ you log in directly on instagram.com and the app never sees your password.
   white on a dark one (average brightness of the photo, no text shadow); a
   slider dims busy photos. Instagram draws a wide outline in the page colour
   around each bubble to round it – that outline is made transparent.
+- **Anonymous mode** (Settings → Súkromie, off by default; rules in
+  `lib/cosmetic_css.dart`): names and profile pictures in the chat list (rows,
+  notes, your own username) and inside a chat (header, sender names, "Seen
+  by", "replied to", pictures next to messages and reactions) are covered –
+  names become transparent, pictures are replaced by a neutral person icon.
+  The pill shows an icon instead of your picture and notifications come
+  without the sender's name. Message texts and previews stay. CSS only; the
+  page is not changed and nothing is read.
 - **Instant chats** (`lib/chat_snapshot.dart`, Settings → Súkromie, on by
   default): NoFeed keeps a picture of each chat you open and shows it at once
   the next time, until Instagram has loaded the live chat (about a second) and
@@ -270,6 +278,11 @@ magick -background none -density 72 assets/icon/icon.svg -resize 1024x1024 -alph
 - No real push notifications: notifications work only while NoFeed runs (see
   above), and they depend on the layout of Instagram's chat list.
 - Instant chats show a picture that can be a few messages old for a moment.
+- Anonymous mode finds names by their place in Instagram's page, so a change of
+  the page can uncover them again until the rules are updated. In group chats
+  the preview in the chat list starts with the sender's username
+  ("name: text"), which cannot be hidden separately; names inside shared
+  content (e.g. the author of a shared reel) and on profile pages stay too.
 - Chat backgrounds: one text colour is chosen for the whole photo, so on a
   photo with very light and very dark areas some times/names are harder to
   read (use the dimming slider). On Android 7–8 a photo's rotation tag is not

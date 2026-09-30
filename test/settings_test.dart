@@ -97,6 +97,17 @@ void main() {
       expect(changed?.instantChats, isFalse);
     });
 
+    testWidgets('anonymous mode can be turned on', (tester) async {
+      useTallScreen(tester);
+      AppSettings? changed;
+      await pump(tester, onChanged: (s) => changed = s, onLogout: () async {});
+      expect(const AppSettings().anonymousMode, isFalse);
+      await tester.tap(find.text('Anonymný režim'));
+      await tester.pump();
+      expect(changed?.anonymousMode, isTrue);
+      expect(changed?.copyWith(allowStories: false).anonymousMode, isTrue);
+    });
+
     testWidgets('logout needs confirmation', (tester) async {
       useTallScreen(tester);
       var logouts = 0;

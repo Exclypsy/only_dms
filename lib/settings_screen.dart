@@ -146,6 +146,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
           const _SectionHeader('Súkromie'),
           SwitchListTile(
+            title: const Text('Anonymný režim'),
+            subtitle: const Text(
+              'Zakryje mená a profilové fotky v zozname chatov aj v chatoch. '
+              'Texty správ ostanú viditeľné.',
+            ),
+            value: _settings.anonymousMode,
+            onChanged: (v) => _update(_settings.copyWith(anonymousMode: v)),
+          ),
+          SwitchListTile(
             title: const Text('Okamžité otváranie chatov'),
             subtitle: const Text(
               'NoFeed si v tomto zariadení odloží obrázok chatu, ktorý otvoríš '
