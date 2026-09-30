@@ -1,8 +1,8 @@
-/// Bottom navigation of NoFeed: only Messages and Profile.
+/// Bottom navigation of NoFeed: Home (Following feed), Messages, Profile.
 /// Pure Dart so it can be unit-tested.
 library;
 
-enum NavTab { messages, profile }
+enum NavTab { home, messages, profile }
 
 class NavTabs {
   const NavTabs._();
@@ -22,7 +22,10 @@ class NavTabs {
   /// Which tab is active for [url] (null = none, e.g. a post or a story).
   static NavTab? activeTab(String? url, {String? username}) {
     final segments = _segments(url);
-    if (segments == null || segments.isEmpty) return null;
+    if (segments == null) return null;
+    if (segments.isEmpty) {
+      return Uri.parse(url!).queryParameters['variant'] == 'following' ? NavTab.home : null;
+    }
     if (segments.first == 'direct') return NavTab.messages;
     if (username != null && segments.first == username) return NavTab.profile;
     return null;

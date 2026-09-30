@@ -30,7 +30,8 @@ void main() {
     for (final url in [
       'https://www.instagram.com/',
       'https://www.instagram.com',
-      'https://www.instagram.com/?variant=following',
+      'https://www.instagram.com/?variant=home',
+      'https://www.instagram.com/?variant=past_posts',
       'https://www.instagram.com//',
       'https://www.instagram.com/reels/',
       'https://www.instagram.com/reels',
@@ -149,5 +150,22 @@ void main() {
         expect(UrlPolicy.isInstagramOrigin(url), isFalse, reason: url);
       }
     });
+  });
+
+  test('isChat recognises open chats only', () {
+    expect(UrlPolicy.isChat('https://www.instagram.com/direct/t/1234567890/'), isTrue);
+    expect(UrlPolicy.isChat('https://www.instagram.com/direct/inbox/'), isFalse);
+    expect(UrlPolicy.isChat('https://www.instagram.com/direct/t/'), isFalse);
+    expect(UrlPolicy.isChat('https://evil.example/direct/t/123/'), isFalse);
+    expect(UrlPolicy.isChat(null), isFalse);
+  });
+
+  test('the Following feed (Home tab) is allowed, the normal feed is not', () {
+    expectAction('https://www.instagram.com/?variant=following', UrlAction.allow);
+    expectAction(UrlPolicy.followingFeedUri.toString(), UrlAction.allow);
+    expect(UrlPolicy.isFollowingFeed('https://www.instagram.com/?variant=following'), isTrue);
+    expect(UrlPolicy.isFollowingFeed('https://www.instagram.com/'), isFalse);
+    expect(UrlPolicy.isFollowingFeed('https://www.instagram.com/p/x/?variant=following'), isFalse);
+    expect(UrlPolicy.isFollowingFeed('https://evil.example/?variant=following'), isFalse);
   });
 }

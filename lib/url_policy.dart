@@ -7,7 +7,8 @@ enum UrlAction {
   /// Show it in the WebView.
   allow,
 
-  /// Blocked Instagram page (feed, Reels, Explore): go to the inbox instead.
+  /// Blocked Instagram page (feed, Reels, Explore): go to the tab's start
+  /// page (usually the inbox) instead.
   redirectToInbox,
 
   /// A different web domain: open it in the system browser.
@@ -28,6 +29,11 @@ class UrlPolicy {
 
   static final Uri inboxUri = Uri.parse('https://www.instagram.com/direct/inbox/');
   static final Uri loginUri = Uri.parse('https://www.instagram.com/accounts/login/');
+
+  /// Home tab: Instagram's "Following" feed – only posts of accounts you
+  /// follow, newest first, no suggested posts. The normal home feed stays
+  /// blocked (schválené 30. 9. 2026, see CLAUDE.md).
+  static final Uri followingFeedUri = Uri.parse('https://www.instagram.com/?variant=following');
 
   static const String _rootDomain = 'instagram.com';
 
@@ -66,7 +72,7 @@ class UrlPolicy {
     if (uri.userInfo.isNotEmpty) return UrlAction.block;
 
     if (!_mainHosts.contains(host)) return UrlAction.allow;
-    return _decidePath(uri.pathSegments);
+    return _decidePath(uri);
   }
 
   /// Decides a navigation inside an iframe. Other domains are fine there
@@ -82,6 +88,13 @@ class UrlPolicy {
     if (uri == null || !_mainHosts.contains(uri.host.toLowerCase())) return false;
     final segments = _segments(uri.pathSegments);
     return segments.length == 2 && segments[0] == 'direct' && segments[1] == 'inbox';
+  }
+
+  /// Whether [url] is the "Following" feed of the Home tab.
+  static bool isFollowingFeed(String? url) {
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (uri == null || !_mainHosts.contains(uri.host.toLowerCase())) return false;
+    return _segments(uri.pathSegments).isEmpty && uri.queryParameters['variant'] == 'following';
   }
 
   /// Whether [url] is an open chat (`/direct/t/<id>/`).
@@ -101,9 +114,13 @@ class UrlPolicy {
     return _isInstagramHost(uri.host.toLowerCase());
   }
 
-  UrlAction _decidePath(List<String> rawSegments) {
-    final segments = _segments(rawSegments);
-    if (segments.isEmpty) return UrlAction.redirectToInbox; // home feed
+  UrlAction _decidePath(Uri uri) {
+    final segments = _segments(uri.pathSegments);
+    if (segments.isEmpty) {
+      // Home feed: only the "Following" variant.
+      final following = uri.queryParameters['variant'] == 'following';
+      return following ? UrlAction.allow : UrlAction.redirectToInbox;
+    }
 
     final section = segments.first;
     if (_blockedSections.contains(section)) return UrlAction.redirectToInbox;

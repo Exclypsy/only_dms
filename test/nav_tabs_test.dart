@@ -31,6 +31,10 @@ void main() {
       expect(NavTabs.activeTab('$ig/someone/', username: 'martin'), isNull);
       expect(NavTabs.activeTab('$ig/martin/'), isNull);
     });
+    test('home for the Following feed only', () {
+      expect(NavTabs.activeTab('$ig/?variant=following'), NavTab.home);
+      expect(NavTabs.activeTab('$ig/'), isNull);
+    });
     test('none for other pages and domains', () {
       expect(NavTabs.activeTab('$ig/p/abc/', username: 'martin'), isNull);
       expect(NavTabs.activeTab('https://evil.com/direct/inbox/'), isNull);
@@ -44,6 +48,7 @@ void main() {
       expect(NavTabs.showBar('$ig/direct/requests/'), isTrue);
       expect(NavTabs.showBar('$ig/martin/'), isTrue);
       expect(NavTabs.showBar('$ig/p/abc/'), isTrue);
+      expect(NavTabs.showBar('$ig/?variant=following'), isTrue);
     });
     test('hidden inside a chat and on login pages', () {
       expect(NavTabs.showBar('$ig/direct/t/123/'), isFalse);
