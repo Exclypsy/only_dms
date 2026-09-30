@@ -99,25 +99,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: _settings.allowStories,
             onChanged: (v) => _update(_settings.copyWith(allowStories: v)),
           ),
-          if (isAndroid) ...[
-            const _SectionHeader('Súkromie'),
+          const _SectionHeader('Súkromie'),
+          SwitchListTile(
+            title: const Text('Okamžité otváranie chatov'),
+            subtitle: const Text(
+              'NoFeed si v tomto zariadení odloží obrázok chatu, ktorý otvoríš '
+              '(najviac 30), a nabudúce ho ukáže hneď. Vypnutím sa obrázky zmažú.',
+            ),
+            value: _settings.instantChats,
+            onChanged: (v) => _update(_settings.copyWith(instantChats: v)),
+          ),
+          if (isAndroid)
             SwitchListTile(
               title: const Text('Skryť obsah v prehľade aplikácií'),
               subtitle: const Text('Zablokuje aj snímky a nahrávanie obrazovky.'),
               value: _settings.hideInRecents,
               onChanged: (v) => _update(_settings.copyWith(hideInRecents: v)),
             ),
-          ],
           if (widget.onRequestNotifications != null) ...[
             const _SectionHeader('Oznámenia'),
             SwitchListTile(
               title: const Text('Oznámenia o nových správach'),
               subtitle: Text(
                 isAndroid
-                    ? 'Bez mien a obsahu správ. NoFeed zostane bežať na pozadí '
-                          '(ikonka v lište) – nezatváraj ho v prehľade aplikácií.'
-                    : 'Bez mien a obsahu správ. Iba kým je NoFeed otvorený – '
-                          'iOS appky na pozadí uspí.',
+                    ? 'S menom odosielateľa a textom správy. NoFeed zostane bežať na '
+                          'pozadí (ikonka v lište) – nezatváraj ho v prehľade aplikácií.'
+                    : 'S menom odosielateľa a textom správy. Iba kým je NoFeed '
+                          'otvorený – iOS appky na pozadí uspí.',
               ),
               value: _settings.notificationsEnabled,
               onChanged: _setNotifications,
@@ -152,7 +160,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 24),
             child: Text(
-              'NoFeed zobrazuje web instagram.com obmedzený na správy. '
+              'NoFeed zobrazuje web instagram.com obmedzený na správy, tvoj profil '
+              'a príspevky ľudí, ktorých sleduješ. '
               'Nie je spojená so spoločnosťou Meta Platforms, Inc. ani s Instagramom.\n\n'
               'Aplikácia nezbiera žiadne údaje, nemá server ani analytiku. '
               'Prihlásenie (cookies) je uložené iba v tomto zariadení a nezálohuje sa.',

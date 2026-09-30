@@ -10,6 +10,7 @@ import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import 'app_colors.dart';
 import 'chat_keyboard.dart';
+import 'chat_snapshot.dart';
 import 'cosmetic_css.dart';
 import 'error_view.dart';
 import 'header_reveal.dart';
@@ -34,6 +35,8 @@ class InstagramTab extends ChangeNotifier {
     required this._pageBackground,
     required this._showMessage,
     this._onPageChanged,
+    this._chatSnapshots,
+    this._canCaptureChat,
   }) {
     // iOS: play videos inline in the chat instead of forcing full screen.
     final PlatformWebViewControllerCreationParams params =
@@ -70,6 +73,7 @@ class InstagramTab extends ChangeNotifier {
         ..setAllowContentAccess(false)
         ..setGeolocationEnabled(false)
         ..setOnShowFileSelector(_onShowFileSelector);
+      _nativeId = platform.webViewIdentifier;
     } else if (platform is WebKitWebViewController) {
       platform
         // Safari Web Inspector only in debug builds.
@@ -82,12 +86,15 @@ class InstagramTab extends ChangeNotifier {
         // full-screen layouts like a chat keep their header in place; scroll
         // areas inside them still bounce natively.
         ..setOverScrollMode(WebViewOverScrollMode.ifContentScrolls);
-      _webKitId = platform.webViewIdentifier;
+      _nativeId = platform.webViewIdentifier;
       NativeBridge.configureWebView(platform.webViewIdentifier);
       // <input type="file"> is handled by WebKit itself (system photo picker,
       // camera needs NSCameraUsageDescription in Info.plist).
     }
   }
+
+  /// How long the picture of a chat takes to fade into the live chat.
+  static const Duration chatSnapshotFade = Duration(milliseconds: 180);
 
   static const _offlineErrors = {
     WebResourceErrorType.hostLookup,
@@ -105,6 +112,12 @@ class InstagramTab extends ChangeNotifier {
   final void Function(String message) _showMessage;
   final void Function(InstagramTab tab, String url)? _onPageChanged;
 
+  /// Whether pictures of chats may be kept for instant opening (setting).
+  final bool Function()? _chatSnapshots;
+
+  /// Whether this tab is on screen right now (a picture can be taken).
+  final bool Function()? _canCaptureChat;
+
   final RedirectGuard _redirectGuard = RedirectGuard(maxRedirects: 5);
   Timer? _redirectTimer;
   String? _lastUrl;
@@ -117,8 +130,20 @@ class InstagramTab extends ChangeNotifier {
   final ChatKeyboard _chatKeyboard = ChatKeyboard();
   bool _keyboardVisible = false;
 
-  /// iOS: identifier of the native WKWebView (see NativeBridge).
-  int? _webKitId;
+  /// Identifier of the native WebView (see NativeBridge).
+  int? _nativeId;
+
+  bool _dark = false;
+
+  /// Counts page changes, so work started for an older page stops.
+  int _pageSession = 0;
+
+  /// Picture of the chat being opened, shown over the page until Instagram
+  /// has loaded the live chat (see chat_snapshot.dart).
+  Uint8List? chatSnapshot;
+
+  /// False while [chatSnapshot] fades out.
+  bool chatSnapshotVisible = false;
 
   bool _disposed = false;
 
@@ -161,7 +186,8 @@ class InstagramTab extends ChangeNotifier {
         defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
     if (!supported) return;
-    controller.setBackgroundColor(brightness == Brightness.dark ? darkBackground : lightBackground);
+    _dark = brightness == Brightness.dark;
+    controller.setBackgroundColor(_dark ? darkBackground : lightBackground);
     final url = currentUrl;
     if (url != null) _applyCosmetics(url);
   }
@@ -201,7 +227,7 @@ class InstagramTab extends ChangeNotifier {
     }
   }
 
-  void _dismissKeyboard() => NativeBridge.dismissKeyboard(webViewId: _webKitId);
+  void _dismissKeyboard() => NativeBridge.dismissKeyboard(webViewId: _nativeId);
 
   @override
   void dispose() {
@@ -261,55 +287,79 @@ class InstagramTab extends ChangeNotifier {
     _applyCosmetics(url);
     if (!changed) return;
     if (UrlPolicy.isChat(url)) _chatKeyboard.chatOpened();
+    _watchChat(url);
     _headerSettleTimer?.cancel();
     _headerReveal.reset();
     _sentHeaderFrame = null;
     _sendHeaderFrame(_headerReveal.frame, animate: false);
     _onPageChanged?.call(this, url);
-    _probeTiming(url); // TEMP-PROBE
-    _probeInbox(url); // TEMP-PROBE
   }
 
-  // TEMP-PROBE: inbox row structure.
-  Future<void> _probeInbox(String url) async {
-    if (!kDebugMode || !UrlPolicy.isInbox(url)) return;
-    await Future<void>.delayed(const Duration(seconds: 4));
-    final r = await read(r"""(() => {
-      const root = document.querySelector('[data-pagelet="IGDInboxThreadListScrollableAreaPagelet"]');
-      if (!root) return 'no root';
-      const roles = {};
-      root.querySelectorAll('[role]').forEach(e => { const k = e.tagName + '/' + e.getAttribute('role'); roles[k] = (roles[k]||0)+1; });
-      const rows = [...root.querySelectorAll('div[role="button"]')].filter(e => e.innerText.includes('·')).slice(0, 4);
-      const d = rows.map(e => ({lines: e.innerText.split('\n').map(x => x.slice(0, 30)),
-        leaves: [...e.querySelectorAll('span, abbr, div')].filter(x => x.children.length === 0 && x.textContent.trim()).map(x => x.tagName + ':' + getComputedStyle(x).fontWeight + ':' + x.textContent.slice(0, 20) + (x.getAttribute('aria-label') ? '[' + x.getAttribute('aria-label') + ']' : '')),
-        status: [...e.querySelectorAll('[role="status"], [aria-label]')].map(x => x.tagName + '/' + x.getAttribute('role') + '/' + x.getAttribute('aria-label')),
-        nested: e.querySelectorAll('div[role="button"]').length}));
-      return JSON.stringify({roles, rows: d});
-    })()""");
-    debugPrint('PROBE inbox $r');
-    debugPrint('PROBE title ${await controller.getTitle()}');
-  }
+  /// Instant chats: shows the saved picture of the chat at once, fades it out
+  /// when the live chat has loaded, and keeps the picture up to date while
+  /// the chat is open and shows its newest messages.
+  Future<void> _watchChat(String url) async {
+    final session = ++_pageSession;
+    bool current() => session == _pageSession && !_disposed;
 
-  // TEMP-PROBE: structure only (counts / pagelet names), no text.
-  Future<void> _probeTiming(String url) async {
-    if (!kDebugMode || !url.contains('/direct/t/')) return;
-    final start = DateTime.now();
-    debugPrint('PROBE url change ${start.toIso8601String()}');
-    String? last;
-    while (DateTime.now().difference(start).inMilliseconds < 6000) {
-      final r = await read(
-        r'''(() => { const q = s => document.querySelectorAll(s).length;
-        const p = [...document.querySelectorAll('[data-pagelet]')].map(e => e.getAttribute('data-pagelet')).join(',');
-        return JSON.stringify({p, row: q('[role="row"]'), grid: q('[role="grid"]'), tb: q('[role="textbox"]'),
-          prog: q('[role="progressbar"]'), img: document.images.length, sk: q('[data-visualcompletion="loading-state"]')}); })()''',
-      );
-      final s = '$r';
-      if (s != last) {
-        debugPrint('PROBE +${DateTime.now().difference(start).inMilliseconds}ms $s');
-        last = s;
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+    final key = (_chatSnapshots?.call() ?? false) ? chatSnapshotKey(url, dark: _dark) : null;
+    final id = _nativeId;
+    if (key == null || id == null) {
+      _dropSnapshot();
+      return;
     }
+
+    final picture = await NativeBridge.loadChatSnapshot(key);
+    if (!current()) return;
+    chatSnapshot = picture;
+    chatSnapshotVisible = picture != null;
+    _notify();
+
+    // Wait until Instagram has rendered the messages (give up after a while:
+    // a stale picture must not hide an error or a very slow page for long).
+    final started = DateTime.now();
+    var state = ChatPageState.loading;
+    while (state == ChatPageState.loading) {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!current()) return;
+      state = parseChatPageState(await read(chatPageStateScript));
+      if (!current()) return;
+      if (DateTime.now().difference(started) > const Duration(seconds: 5)) break;
+    }
+    // Let the freshly rendered chat paint before the picture goes away.
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    if (!current()) return;
+    await _fadeOutSnapshot(current);
+    if (state == ChatPageState.loading) return;
+
+    // Keep the picture fresh: photos finish loading, messages come and go.
+    var delay = const Duration(milliseconds: 900);
+    while (current()) {
+      await Future<void>.delayed(delay);
+      if (!current()) return;
+      delay = const Duration(seconds: 5);
+      if (_keyboardVisible || error != null || !(_canCaptureChat?.call() ?? false)) continue;
+      state = parseChatPageState(await read(chatPageStateScript));
+      if (!current()) return;
+      if (state == ChatPageState.atNewest) {
+        await NativeBridge.saveChatSnapshot(webViewId: id, key: key);
+      }
+    }
+  }
+
+  Future<void> _fadeOutSnapshot(bool Function() current) async {
+    if (chatSnapshot == null) return;
+    chatSnapshotVisible = false;
+    _notify();
+    await Future<void>.delayed(chatSnapshotFade);
+    if (current()) _dropSnapshot();
+  }
+
+  void _dropSnapshot() {
+    if (chatSnapshot == null) return;
+    chatSnapshot = null;
+    chatSnapshotVisible = false;
+    _notify();
   }
 
   void _requestRedirect() {
@@ -470,6 +520,24 @@ class InstagramTabView extends StatelessWidget {
                   child: WebViewWidget(controller: tab.controller),
                 ),
               ),
+              if (tab.chatSnapshot case final picture?)
+                Positioned.fill(
+                  // Touches go to the page underneath.
+                  child: IgnorePointer(
+                    child: AnimatedOpacity(
+                      opacity: tab.chatSnapshotVisible ? 1 : 0,
+                      duration: InstagramTab.chatSnapshotFade,
+                      child: Image.memory(
+                        picture,
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                        gaplessPlayback: true,
+                        excludeFromSemantics: true,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ),
               if (tab.progress < 100 && tab.error == null)
                 Positioned(
                   top: edgeToEdge ? MediaQuery.paddingOf(context).top : 0,

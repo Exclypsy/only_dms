@@ -1,7 +1,8 @@
 # NoFeed
 
-A minimal Android/iOS app that shows only your Instagram direct messages –
-no feed, no Reels, no Explore. It is a WebView around `https://www.instagram.com`;
+A minimal Android/iOS app that shows only your Instagram direct messages, your
+profile and the posts of people you follow – no recommended feed, no Reels, no
+Explore. It is a WebView around `https://www.instagram.com`;
 you log in directly on instagram.com and the app never sees your password.
 
 > **Disclaimer:** NoFeed is an independent project for Instagram and is not
@@ -14,6 +15,8 @@ you log in directly on instagram.com and the app never sees your password.
   - allowed: `/direct/*`, `/accounts/*`, `/challenge/*`, profiles, `/p/*`,
     `/reel/<id>`, `/stories/*` and other `*.instagram.com` subdomains;
   - redirected to the inbox: `/`, `/reels*`, `/explore*`;
+  - the only allowed form of `/` is the "Following" feed `/?variant=following`
+    (the Home tab): posts of accounts you follow, newest first, no suggestions;
   - other websites open in the system browser;
   - other schemes (`intent:`, `javascript:`, `file:` …) are blocked.
 - Because Instagram is a single-page app, URL changes are checked both in
@@ -29,17 +32,33 @@ you log in directly on instagram.com and the app never sees your password.
 
 - **No toolbar**: the page starts right under the status bar; the dark theme uses
   Instagram's background colour (#0C1014).
-- **Floating navigation pill** with only **Messages** and **Profile**
+- **Floating navigation pill** with **Home**, **Messages** and **Profile**
   (`lib/nav_bar.dart`, logic in `lib/nav_tabs.dart`): translucent blurred capsule,
-  own paper-plane icon (outlined / filled) and your profile picture (ring when
-  active). The highlight slides to the tapped item and stretches on the way, like
-  liquid glass. Hidden inside an open chat, on login pages and while the keyboard
-  is open.
-- **Tabs stay loaded** (`lib/instagram_tab.dart`): Messages and Profile each have
-  their own WebView that stays alive, so switching is instant and keeps the
-  scroll position. The Profile tab is loaded in the background as soon as your
-  username is known. Tapping the active tab again goes back to its start. Both
-  WebViews share the login.
+  own house and paper-plane icons (outlined / filled) and your profile picture
+  (ring when active). The highlight slides to the tapped item and stretches on
+  the way, like liquid glass. You can also drag it with your finger: it lifts,
+  follows the finger and drops onto the nearest item. Hidden inside an open chat,
+  on login pages and while the keyboard is open.
+- **Home** opens only Instagram's "Following" feed (see `lib/url_policy.dart`);
+  it is loaded on the first tap, not in the background.
+- **Tabs stay loaded** (`lib/instagram_tab.dart`): each tab has its own WebView
+  that stays alive, so switching is instant and keeps the scroll position. The
+  Profile tab is loaded in the background as soon as your username is known.
+  Tapping the active tab again goes back to its start. All WebViews share the
+  login.
+- **Chat keyboard** (`lib/chat_keyboard.dart`, native part in `AppDelegate.swift`
+  / `MainActivity.kt`): the WebView shrinks above the keyboard, so the chat's
+  header stays visible; no "‹ › ✓" bar above the keyboard on iOS; the keyboard
+  does not open by itself when a chat opens; a tap into the conversation or a
+  drag down closes it. All of this is native – no JavaScript.
+- **Instant chats** (`lib/chat_snapshot.dart`, Settings → Súkromie, on by
+  default): NoFeed keeps a picture of each chat you open and shows it at once
+  the next time, until Instagram has loaded the live chat (about a second) and
+  the picture fades out. The first opening of a chat is as fast as the website;
+  chats are never opened in the background (that would mark them as read).
+  Pictures live only in the app's private cache folder (not backed up, at most
+  30 chats, encrypted by iOS while the phone is locked) and are deleted on
+  logout or when the setting is turned off.
 - **Settings**: long-press Profile in the pill (a one-time tip explains it); also
   reachable from the error screen.
 - **Inbox scrolling** (`lib/cosmetic_css.dart`, `lib/header_reveal.dart`): the
@@ -78,11 +97,12 @@ for the name and shows a person icon instead.
   hide content in recent apps (Android `FLAG_SECURE`, also blocks screenshots),
   and **Log out and delete data** (cookies, cache, web storage).
 - **New-message notifications** (Settings → Oznámenia, off by default,
-  `lib/unread_notifier.dart`): Instagram's website shows the number of unread
-  chats at the start of the page title, e.g. "(2) Instagram". NoFeed reads the
-  title natively (WebView `getTitle`, not from the page's content), takes only
-  that number, and shows a local notification when it goes up while you are not
-  looking at the inbox. The text never contains names or messages.
+  `lib/unread_notifier.dart`): with the sender and the text, like the Instagram
+  app. Every 4 s NoFeed looks at the chat list of the inbox (which Instagram
+  keeps loaded) and reads the name and the preview of the unread (bold) chats
+  – never an opened conversation. A new or changed preview becomes a local
+  notification, unless you are looking at the inbox. Names and texts are kept
+  in memory only and never leave the device (approved exception, CLAUDE.md §4).
   - Android: works in the background – NoFeed keeps running with a foreground
     service (permanent low-priority notification), like a browser tab left
     open. Don't swipe NoFeed away in recent apps.
@@ -99,7 +119,7 @@ for the name and shows a person icon instead.
 |---|---|
 | `lib/url_policy.dart` | all navigation rules |
 | `lib/redirect_guard.dart` | redirect-loop protection |
-| `lib/dm_screen.dart` | app shell: the two tabs, navigation pill, settings, back button |
+| `lib/dm_screen.dart` | app shell: the three tabs, navigation pill, settings, back button |
 | `lib/instagram_tab.dart` | one Instagram WebView: URL rules, errors, cosmetics, picker & permissions |
 | `lib/settings.dart`, `lib/settings_screen.dart` | settings model, storage and UI |
 | `lib/media_pick_request.dart` | maps `accept="…"` to the right system picker |
@@ -107,7 +127,9 @@ for the name and shows a person icon instead.
 | `lib/viewer_account.dart` | reads only the logged-in username and profile-picture URL (the one JS exception) |
 | `lib/header_reveal.dart` | hide/show the inbox header on scroll |
 | `lib/unread_notifier.dart` + `Notifications.kt`, `KeepAliveService.kt`, `AppDelegate.swift` | new-message notifications |
-| `lib/native_bridge.dart` + `MainActivity.kt` | small Android platform channel |
+| `lib/chat_keyboard.dart` | when to close the keyboard in a chat |
+| `lib/chat_snapshot.dart` + `ChatSnapshots.kt`, `AppDelegate.swift` | pictures of opened chats for instant opening |
+| `lib/native_bridge.dart` + `MainActivity.kt`, `AppDelegate.swift` | small platform channel |
 | `assets/icon/icon.svg` | app icon source |
 
 Only Android and iOS are supported (the desktop/web folders were removed).
@@ -190,8 +212,12 @@ A paid Apple Developer Program membership (99 $/year) extends this to one year.
 
 - WebKit (WKWebView) is used, as required by App Store guideline 2.5.6.
 - Swipe from the left edge to go back (there is no Back button on iOS).
-- The keyboard is handled by WebKit itself, like in Safari (the app does not
-  resize the WebView on iOS; doing both would move the chat composer twice).
+- Keyboard: Flutter resizes the WebView above the keyboard and WKWebView's own
+  keyboard handling (scrolling the whole page up, like Safari) is switched off
+  by removing its keyboard observers; the form accessory bar is hidden by
+  overriding `inputAccessoryView` of WebKit's content view (public Objective-C
+  runtime API, see `WebViewKeyboard` in `AppDelegate.swift`). If a future iOS
+  changes WebKit's internals, this falls back to WebKit's default behaviour.
 - Photos/videos: WebKit shows its own menu (photo library, camera, files).
   The photo library uses the system picker without photo permission.
 - Camera/microphone: WebKit asks "instagram.com wants to use…", then iOS asks
@@ -219,7 +245,9 @@ magick -background none -density 72 assets/icon/icon.svg -resize 1024x1024 -alph
   grey zone.
 - "Log in with Facebook" opens in the system browser (facebook.com is not on
   the allow-list), so log in with your Instagram username and password.
-- No push notifications (out of scope by design).
+- No real push notifications: notifications work only while NoFeed runs (see
+  above), and they depend on the layout of Instagram's chat list.
+- Instant chats show a picture that can be a few messages old for a moment.
 - Camera/microphone access is decided by the main-frame URL, because neither
   `webview_flutter_android` nor `webview_flutter_wkwebview` exposes the
   requesting origin. The main frame is always Instagram (`UrlPolicy`).

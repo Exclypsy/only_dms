@@ -4,6 +4,13 @@ import 'package:nofeed/settings.dart';
 import 'package:nofeed/settings_screen.dart';
 import 'package:nofeed/url_policy.dart';
 
+/// The settings list is a lazy ListView: a tall screen builds all of it.
+void useTallScreen(WidgetTester tester) {
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+}
+
 void main() {
   const reel = 'https://www.instagram.com/reel/abc/';
   const story = 'https://www.instagram.com/stories/u/1/';
@@ -72,6 +79,7 @@ void main() {
     }
 
     testWidgets('switching stories off reports new settings', (tester) async {
+      useTallScreen(tester);
       AppSettings? changed;
       await pump(tester, onChanged: (s) => changed = s, onLogout: () async {});
       await tester.tap(find.text('Povoliť stories'));
@@ -80,7 +88,17 @@ void main() {
       expect(changed?.allowSharedReels, isTrue);
     });
 
+    testWidgets('instant chats can be turned off', (tester) async {
+      useTallScreen(tester);
+      AppSettings? changed;
+      await pump(tester, onChanged: (s) => changed = s, onLogout: () async {});
+      await tester.tap(find.text('Okamžité otváranie chatov'));
+      await tester.pump();
+      expect(changed?.instantChats, isFalse);
+    });
+
     testWidgets('logout needs confirmation', (tester) async {
+      useTallScreen(tester);
       var logouts = 0;
       await pump(tester, onChanged: (_) {}, onLogout: () async => logouts++);
 
@@ -119,6 +137,7 @@ void main() {
     }
 
     testWidgets('turning on asks for permission', (tester) async {
+      useTallScreen(tester);
       AppSettings? changed;
       var asked = 0;
       await pumpScreen(tester, onRequest: () async => ++asked > 0, onChanged: (s) => changed = s);
@@ -130,6 +149,7 @@ void main() {
     });
 
     testWidgets('stays off when permission is refused', (tester) async {
+      useTallScreen(tester);
       AppSettings? changed;
       await pumpScreen(tester, onRequest: () async => false, onChanged: (s) => changed = s);
       await tester.tap(find.text('Oznámenia o nových správach'));

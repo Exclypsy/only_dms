@@ -47,7 +47,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   Brightness? _appliedBrightness;
 
   /// New-message notifications (see unread_notifier.dart).
-  final UnreadTracker _unread = UnreadTracker();
+  final UnreadChatTracker _unread = UnreadChatTracker();
   Timer? _unreadTimer;
   AppLifecycleState _lifecycle = AppLifecycleState.resumed;
 
@@ -77,7 +77,7 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     _active.keyboardChanged(visible: visible);
   }
 
-  /// Starts or stops watching Instagram's unread counter (and, on Android, the
+  /// Starts or stops watching for unread chats (and, on Android, the
   /// background service) according to the settings.
   void _applyNotifications() {
     _unreadTimer?.cancel();
@@ -89,24 +89,20 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Reads the counter from the page title (natively, not from the page's
-  /// content) and notifies when it goes up while you are not looking at the
-  /// inbox. The notification has no names or message content.
+  /// Reads the unread chats from the inbox list of the Messages tab (name and
+  /// preview only, see unread_notifier.dart) and shows a notification for each
+  /// new message, unless you are looking at the inbox anyway.
   Future<void> _checkUnread() async {
-    String? title;
-    try {
-      title = await _messages.controller.getTitle();
-    } on Object {
-      title = null;
-    }
-    final count = parseUnreadCount(title);
-    if (!_unread.update(count) || count == null) return;
+    final chats = parseUnreadChats(await _messages.read(readUnreadChatsScript));
+    final fresh = _unread.update(chats);
+    if (fresh.isEmpty) return;
     final lookingAtInbox =
         _lifecycle == AppLifecycleState.resumed &&
         _activeTab == NavTab.messages &&
         UrlPolicy.isInbox(_messages.currentUrl);
-    if (!lookingAtInbox) {
-      await NativeBridge.showNotification(title: 'NoFeed', body: unreadNotificationText(count));
+    if (lookingAtInbox) return;
+    for (final chat in fresh.take(3)) {
+      await NativeBridge.showNotification(title: chat.name, body: chat.text, tag: chat.name);
     }
   }
 
@@ -134,12 +130,16 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   }
 
   InstagramTab _createTab(Uri home) {
-    final tab = InstagramTab(
+    late final InstagramTab tab;
+    tab = InstagramTab(
       homeUri: home,
       policy: () => _policy,
       pageBackground: () => _cssColor(Theme.of(context).scaffoldBackgroundColor),
       showMessage: _showMessage,
       onPageChanged: _onPageChanged,
+      chatSnapshots: () => _settings.instantChats,
+      canCaptureChat: () =>
+          mounted && _lifecycle == AppLifecycleState.resumed && identical(_active, tab),
     )..addListener(_onTabChanged);
     final brightness = _appliedBrightness;
     if (brightness != null) tab.applyBrightness(brightness);
@@ -246,21 +246,24 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
   Future<void> _updateSettings(AppSettings settings) async {
     final secureChanged = settings.hideInRecents != _settings.hideInRecents;
     final notificationsChanged = settings.notificationsEnabled != _settings.notificationsEnabled;
+    final snapshotsTurnedOff = _settings.instantChats && !settings.instantChats;
     setState(() {
       _settings = settings;
       _policy = settings.urlPolicy;
     });
     if (secureChanged) await NativeBridge.setSecure(settings.hideInRecents);
     if (notificationsChanged) _applyNotifications();
+    if (snapshotsTurnedOff) await NativeBridge.clearChatSnapshots();
     await widget.store.save(settings);
   }
 
-  /// Log out locally: delete cookies, cache and web storage (shared by all
-  /// tabs), drop the Profile tab and show the login page.
+  /// Log out locally: delete cookies, cache, web storage (shared by all tabs)
+  /// and the saved chat pictures, drop the other tabs and show the login page.
   Future<void> _logoutAndClearData() async {
     await WebViewCookieManager().clearCookies();
     await _messages.controller.clearCache();
     await _messages.controller.clearLocalStorage();
+    await NativeBridge.clearChatSnapshots();
     final dropped = [?_profile, ?_home];
     setState(() {
       _profile = null;
@@ -325,8 +328,9 @@ class _DmScreenState extends State<DmScreen> with WidgetsBindingObserver {
           onLogout: _logoutAndClearData,
           onRequestNotifications: NativeBridge.requestNotifications,
           onTestNotification: () => NativeBridge.showNotification(
-            title: 'NoFeed',
+            title: 'Meno odosielateľa',
             body: 'Takto bude vyzerať oznámenie o novej správe.',
+            tag: 'test',
           ),
         ),
       ),

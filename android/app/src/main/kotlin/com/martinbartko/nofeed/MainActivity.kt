@@ -12,6 +12,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugins.webviewflutter.WebViewFlutterAndroidExternalApi
 
 /**
  * Small platform channel used by lib/native_bridge.dart:
@@ -21,6 +22,7 @@ import io.flutter.plugin.common.MethodChannel
  *  - requestNotifications / showNotification: local notifications (Notifications.kt)
  *  - setKeepAlive: KeepAliveService on/off
  *  - dismissKeyboard: closes the soft keyboard (chat, see lib/chat_keyboard.dart)
+ *  - saveChatSnapshot / loadChatSnapshot / clearChatSnapshots: ChatSnapshots.kt
  */
 class MainActivity : FlutterActivity() {
     private var pendingPick: MethodChannel.Result? = null
@@ -40,10 +42,32 @@ class MainActivity : FlutterActivity() {
                             this,
                             call.argument<String>("title") ?: "NoFeed",
                             call.argument<String>("body") ?: "",
+                            call.argument<String>("tag"),
                         )
                         result.success(null)
                     }
                     "setKeepAlive" -> setKeepAlive(call, result)
+                    "saveChatSnapshot" -> {
+                        val id = call.argument<Number>("id")?.toLong()
+                        val key = call.argument<String>("key")
+                        @Suppress("DEPRECATION") // the non-deprecated variant needs a plugin binding
+                        val webView = id?.let {
+                            WebViewFlutterAndroidExternalApi.getWebView(flutterEngine, it)
+                        }
+                        if (webView == null || key == null) {
+                            result.success(false)
+                        } else {
+                            ChatSnapshots.save(this, webView, key) { result.success(it) }
+                        }
+                    }
+                    "loadChatSnapshot" ->
+                        ChatSnapshots.load(this, call.argument<String>("key") ?: "") {
+                            result.success(it)
+                        }
+                    "clearChatSnapshots" -> {
+                        ChatSnapshots.clear(this)
+                        result.success(null)
+                    }
                     "dismissKeyboard" -> {
                         val view = currentFocus ?: window.decorView
                         getSystemService(InputMethodManager::class.java)

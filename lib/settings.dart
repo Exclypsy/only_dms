@@ -9,6 +9,7 @@ class AppSettings {
     this.allowStories = true,
     this.hideInRecents = false,
     this.notificationsEnabled = false,
+    this.instantChats = true,
     this.username,
   });
 
@@ -19,12 +20,16 @@ class AppSettings {
   /// (and also blocks screenshots).
   final bool hideInRecents;
 
-  /// Local notifications when Instagram's unread counter goes up (see
+  /// Local notifications about new messages with the sender and the text (see
   /// unread_notifier.dart). Off by default; turning it on asks for permission.
   final bool notificationsEnabled;
 
-  /// The user's own Instagram username, typed in by the user, used only to
-  /// build the Profile button URL. Never read from the page.
+  /// Keeps pictures of opened chats on the device so they open instantly the
+  /// next time (see chat_snapshot.dart). Turning it off deletes them.
+  final bool instantChats;
+
+  /// The user's own Instagram username (detected in the inbox header, see
+  /// viewer_account.dart, or typed in), used only for the Profile button.
   final String? username;
 
   UrlPolicy get urlPolicy =>
@@ -35,6 +40,7 @@ class AppSettings {
     bool? allowStories,
     bool? hideInRecents,
     bool? notificationsEnabled,
+    bool? instantChats,
     String? username,
     bool clearUsername = false,
   }) => AppSettings(
@@ -42,6 +48,7 @@ class AppSettings {
     allowStories: allowStories ?? this.allowStories,
     hideInRecents: hideInRecents ?? this.hideInRecents,
     notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+    instantChats: instantChats ?? this.instantChats,
     username: clearUsername ? null : (username ?? this.username),
   );
 }
@@ -55,6 +62,7 @@ class SettingsStore {
   static const _allowStories = 'allow_stories';
   static const _hideInRecents = 'hide_in_recents';
   static const _notificationsEnabled = 'notifications_enabled';
+  static const _instantChats = 'instant_chats';
   static const _username = 'profile_username';
 
   Future<AppSettings> load() async {
@@ -65,6 +73,7 @@ class SettingsStore {
       hideInRecents: await _prefs.getBool(_hideInRecents) ?? defaults.hideInRecents,
       notificationsEnabled:
           await _prefs.getBool(_notificationsEnabled) ?? defaults.notificationsEnabled,
+      instantChats: await _prefs.getBool(_instantChats) ?? defaults.instantChats,
       username: await _prefs.getString(_username),
     );
   }
@@ -81,6 +90,7 @@ class SettingsStore {
     await _prefs.setBool(_allowStories, settings.allowStories);
     await _prefs.setBool(_hideInRecents, settings.hideInRecents);
     await _prefs.setBool(_notificationsEnabled, settings.notificationsEnabled);
+    await _prefs.setBool(_instantChats, settings.instantChats);
     final username = settings.username;
     if (username == null) {
       await _prefs.remove(_username);

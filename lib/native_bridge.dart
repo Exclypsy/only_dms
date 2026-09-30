@@ -24,11 +24,20 @@ class NativeBridge {
     }
   }
 
-  /// Shows a local notification (replaces the previous NoFeed notification).
-  static Future<void> showNotification({required String title, required String body}) async {
+  /// Shows a local notification. Notifications with the same [tag] (one chat)
+  /// replace each other; different chats are shown side by side.
+  static Future<void> showNotification({
+    required String title,
+    required String body,
+    String? tag,
+  }) async {
     if (!_isAndroid && !_isIOS) return;
     try {
-      await _channel.invokeMethod<void>('showNotification', {'title': title, 'body': body});
+      await _channel.invokeMethod<void>('showNotification', {
+        'title': title,
+        'body': body,
+        'tag': tag,
+      });
     } on PlatformException {
       // Notifications are best effort.
     }
@@ -63,6 +72,38 @@ class NativeBridge {
     if (!_isAndroid && !_isIOS) return;
     try {
       await _channel.invokeMethod<void>('dismissKeyboard', {'id': webViewId});
+    } on PlatformException {
+      // Best effort.
+    }
+  }
+
+  /// Saves a picture of the WebView [webViewId] as the snapshot of a chat
+  /// (see chat_snapshot.dart). True if it was saved.
+  static Future<bool> saveChatSnapshot({required int webViewId, required String key}) async {
+    if (!_isAndroid && !_isIOS) return false;
+    try {
+      return await _channel.invokeMethod<bool>('saveChatSnapshot', {'id': webViewId, 'key': key}) ??
+          false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// The saved picture of a chat (JPEG bytes), or null.
+  static Future<Uint8List?> loadChatSnapshot(String key) async {
+    if (!_isAndroid && !_isIOS) return null;
+    try {
+      return await _channel.invokeMethod<Uint8List>('loadChatSnapshot', {'key': key});
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  /// Deletes all saved chat pictures.
+  static Future<void> clearChatSnapshots() async {
+    if (!_isAndroid && !_isIOS) return;
+    try {
+      await _channel.invokeMethod<void>('clearChatSnapshots');
     } on PlatformException {
       // Best effort.
     }

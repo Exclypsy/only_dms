@@ -9,8 +9,9 @@ import android.content.Intent
 import android.os.Build
 
 /**
- * Local notifications. Their text never contains names or message content –
- * only Instagram's unread counter (see lib/unread_notifier.dart).
+ * Local notifications: the sender and the preview text of a new message, read
+ * from Instagram's inbox list (see lib/unread_notifier.dart). Nothing is
+ * stored or sent anywhere.
  */
 object Notifications {
     private const val CHANNEL_MESSAGES = "messages"
@@ -33,15 +34,28 @@ object Notifications {
         )
     }
 
-    fun showMessage(context: Context, title: String, body: String) {
+    /**
+     * One notification per chat ([tag]): a newer message of the same chat
+     * replaces the older one. On a locked screen with "hide sensitive content"
+     * only "Nová správa" is shown (VISIBILITY_PRIVATE + public version).
+     */
+    fun showMessage(context: Context, title: String, body: String, tag: String?) {
         ensureChannels(context)
+        val public = builder(context, CHANNEL_MESSAGES)
+            .setContentTitle("NoFeed")
+            .setContentText("Nová správa")
+            .build()
         val notification = builder(context, CHANNEL_MESSAGES)
             .setContentTitle(title)
             .setContentText(body)
+            .setStyle(Notification.BigTextStyle().bigText(body))
             .setAutoCancel(true)
             .setCategory(Notification.CATEGORY_MESSAGE)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(public)
             .build()
-        context.getSystemService(NotificationManager::class.java).notify(ID_MESSAGES, notification)
+        context.getSystemService(NotificationManager::class.java)
+            .notify(tag ?: "unread", ID_MESSAGES, notification)
     }
 
     fun keepAlive(context: Context): Notification {

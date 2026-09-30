@@ -3,7 +3,9 @@
 <!--
   NoFeed privacy manifest (app target).
   - No tracking, no tracking domains, no data collected by the app.
-  - The app's own code uses no required-reason APIs. Flutter and the plugins
+  - The app's own code uses one required-reason API: file timestamps, to keep
+    only the newest chat pictures inside the app's own cache folder
+    (ChatSnapshots in AppDelegate.swift, reason C617.1). Flutter and the plugins
     (webview_flutter_wkwebview, url_launcher_ios, shared_preferences_foundation)
     ship their own PrivacyInfo.xcprivacy files.
 -->
@@ -16,6 +18,15 @@
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array/>
 	<key>NSPrivacyAccessedAPITypes</key>
-	<array/>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
